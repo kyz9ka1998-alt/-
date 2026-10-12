@@ -14,6 +14,10 @@ const App = {
         const d = JSON.parse(raw);
         Object.assign(this.progress, d.progress || {});
         Object.assign(this.settings, d.settings || {});
+        // убираем уроки и кубки, которых больше нет в программе (навыки сохраняются)
+        const ids = new Set(LESSONS.map((l) => l.id));
+        Object.keys(this.progress.done).forEach((k) => ids.has(k) || delete this.progress.done[k]);
+        this.progress.cups = this.progress.cups.filter((c) => UNITS.some((u) => u.id === c));
       }
     } catch (e) {}
   },
@@ -56,9 +60,17 @@ const shuffle = (a) => {
 };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
+function itemSVG(kind, color) {
+  if (kind === "hat")
+    return `<svg viewBox="0 0 100 70"><ellipse cx="50" cy="55" rx="46" ry="11" fill="${color}" stroke="#222" stroke-width="3"/><path d="M26 54 Q26 12 50 12 Q74 12 74 54 Z" fill="${color}" stroke="#222" stroke-width="3"/><path d="M27 44 Q50 50 73 44 L73 50 Q50 56 27 50 Z" fill="#222" opacity=".55"/></svg>`;
+  return `<svg viewBox="0 0 100 70"><path d="M18 50 Q18 14 52 14 Q84 14 84 50 Z" fill="${color}" stroke="#222" stroke-width="3"/><path d="M80 48 Q98 48 98 56 Q80 60 60 54 Z" fill="${color}" stroke="#222" stroke-width="3"/><line x1="52" y1="14" x2="52" y2="50" stroke="#222" stroke-width="2" opacity=".5"/><circle cx="52" cy="13" r="4" fill="#222"/></svg>`;
+}
+
 function picHTML(word, cls = "") {
-  if (typeof word.pic === "object" && word.pic.color) {
-    return `<span class="pic color-pic ${cls}" style="background:${word.pic.color}"></span>`;
+  const pic = word.pic;
+  if (typeof pic === "object" && pic.svg) return `<span class="pic svg-pic ${cls}">${itemSVG(pic.svg, pic.color)}</span>`;
+  if (typeof pic === "object" && pic.color) {
+    return `<span class="pic color-pic ${cls}" style="background:${pic.color}"></span>`;
   }
   const duo = [...new Intl.Segmenter().segment(word.pic)].length > 1 ? "duo" : "";
   return `<span class="pic ${duo} ${cls}">${word.pic}</span>`;
@@ -126,7 +138,7 @@ function showHome() {
         <span class="bb-icon">▶</span>
         <span class="bb-text">
           <b>${allDone ? "Повторить" : next.kind === "match" ? "Матч за кубок!" : "Тренировка"}</b>
-          <small>${unit.icon} ${esc(unit.title)} · ${esc(next.title)}</small>
+          <small>${unit.book ? "Урок " + unit.book + " · " : ""}${esc(unit.title)} · ${esc(next.title)}</small>
         </span>
       </button>
 
@@ -163,7 +175,7 @@ function showMap() {
         const ls = LESSONS.map((l, i) => ({ l, i })).filter((x) => x.l.unit === ui);
         return `
         <section class="unit">
-          <h3>${u.icon} ${esc(u.title)} <small>${esc(u.ru)}</small> ${App.progress.cups.includes(u.id) ? "🏆" : ""}</h3>
+          <h3>${u.book ? `<span class="book-n">${u.book}</span>` : ""}${u.icon} ${esc(u.title)} <small>${esc(u.ru)}</small> ${App.progress.cups.includes(u.id) ? "🏆" : ""}</h3>
           <div class="lessons">
             ${ls
               .map(({ l, i }) => {
@@ -218,287 +230,6 @@ function showAwards() {
   );
 }
 
-// =================== УРОК ===================
-let L = null; // состояние текущего урока
-
-function buildSteps(lesson) {
-  const words = lesson.words;
-  const steps = [];
-  if (lesson.kind === "train") {
-    words.forEach((w) => steps.push({ type: "intro", word: w }));
-    let pen = shuffle([...words, ...words]);
-    // без одинаковых слов подряд
-    for (let i = 1; i < pen.length; i++) if (pen[i] === pen[i - 1]) [pen[i], pen[(i + 1) % pen.length]] = [pen[(i + 1) % pen.length], pen[i]];
-    pen.forEach((w) => steps.push({ type: "penalty", word: w, pool: words }));
-    shuffle(words).forEach((w) => steps.push({ type: "say", word: w }));
-  } else {
-    shuffle(words).forEach((w) => steps.push({ type: "penalty", word: w, pool: words }));
-    shuffle(words).slice(0, 4).forEach((w) => steps.push({ type: "say", word: w }));
-  }
-  return steps;
-}
-
-function startLesson(index) {
-  Sfx.unlock();
-  const lesson = LESSONS[index];
-  L = { index, lesson, steps: buildSteps(lesson), pos: 0, mistakes: 0, saidTypes: new Set() };
-  Sfx.whistle();
-  runStep();
-}
-
-function lessonShell(inner) {
-  const pct = Math.round((L.pos / L.steps.length) * 100);
-  return render(`
-    <div class="screen lesson">
-      <header class="lesson-top">
-        <button class="icon-btn" id="quit" aria-label="Выйти">✕</button>
-        <div class="field-progress"><div class="fp-fill" style="width:${pct}%"></div><span class="fp-ball" style="left:${pct}%">⚽</span><span class="fp-goal">🥅</span></div>
-      </header>
-      ${inner}
-    </div>`);
-}
-
-function wireQuit(root) {
-  $("#quit", root).onclick = () => {
-    if (confirm("Закончить тренировку? Прогресс этого урока не сохранится.")) {
-      Voice.stop();
-      showHome();
-    }
-  };
-}
-
-function nextStep() {
-  L.pos++;
-  if (L.pos >= L.steps.length) finishLesson();
-  else runStep();
-}
-
-function hintOnce(type, text) {
-  if (L.saidTypes.has(type)) return Promise.resolve();
-  L.saidTypes.add(type);
-  return Voice.ru(text);
-}
-
-function runStep() {
-  const step = L.steps[L.pos];
-  if (step.type === "intro") stepIntro(step);
-  else if (step.type === "penalty") stepPenalty(step);
-  else stepSay(step);
-}
-
-// ---------- 1. Новое слово ----------
-async function stepIntro({ word }) {
-  const root = lessonShell(`
-    <div class="card intro">
-      <div class="tag">Новое слово</div>
-      <button class="pic-big" id="hear">${picHTML(word, "xl")}</button>
-      <div class="word">${esc(word.en)}</div>
-      <div class="ru">${esc(word.ru)}</div>
-      <div class="actions">
-        <button class="round-btn" id="hear2" aria-label="Послушать">🔊</button>
-        <button class="round-btn slow" id="slow" aria-label="Медленно">🐢</button>
-      </div>
-    </div>
-    <button class="big-btn next" id="next">Дальше ➜</button>`);
-  wireQuit(root);
-  const speak = () => Voice.en(word.en);
-  $("#hear", root).onclick = speak;
-  $("#hear2", root).onclick = speak;
-  $("#slow", root).onclick = () => Voice.en(word.en, true);
-  $("#next", root).onclick = () => {
-    Voice.stop();
-    nextStep();
-  };
-  await hintOnce("intro", "Послушай новое слово");
-  await Voice.en(word.en);
-  await sleep(300);
-  await Voice.ru(word.ru);
-  await sleep(300);
-  await Voice.en(word.en, true);
-}
-
-// ---------- 2. Пенальти: услышь слово и забей в нужный угол ----------
-async function stepPenalty({ word, pool }) {
-  const others = shuffle(pool.filter((w) => w !== word)).slice(0, 2);
-  const opts = shuffle([word, ...others]);
-  const root = lessonShell(`
-    <div class="card penalty">
-      <div class="tag">Пенальти! Забей в <b>нужный</b> угол</div>
-      <button class="hear-btn" id="hear">🔊 <span>Послушай</span></button>
-      <div class="goal-frame">
-        <div class="targets">
-          ${opts.map((w, i) => `<button class="target" data-i="${i}">${picHTML(w)}</button>`).join("")}
-        </div>
-        <div class="keeper" id="keeper">🧤</div>
-      </div>
-      <div class="spot"><span class="pball" id="pball">⚽</span></div>
-      <div class="feedback" id="fb"></div>
-    </div>`);
-  wireQuit(root);
-  let tries = 0;
-  let locked = false;
-  const say = () => Voice.en(word.en);
-  $("#hear", root).onclick = say;
-
-  const keeper = $("#keeper", root);
-  const ball = $("#pball", root);
-  const fb = $("#fb", root);
-
-  const flyTo = (el) => {
-    const b = ball.getBoundingClientRect();
-    const t = el.getBoundingClientRect();
-    const dx = t.left + t.width / 2 - (b.left + b.width / 2);
-    const dy = t.top + t.height / 2 - (b.top + b.height / 2);
-    ball.style.transform = `translate(${dx}px, ${dy}px) scale(.7) rotate(540deg)`;
-  };
-  const keeperTo = (el) => {
-    const f = $(".goal-frame", root).getBoundingClientRect();
-    const t = el.getBoundingClientRect();
-    keeper.style.left = t.left - f.left + t.width / 2 + "px";
-  };
-
-  root.querySelectorAll(".target").forEach((btn) => {
-    btn.onclick = async () => {
-      if (locked) return;
-      locked = true;
-      Voice.stop();
-      const chosen = opts[+btn.dataset.i];
-      Sfx.kick();
-      flyTo(btn);
-      if (chosen === word) {
-        // вратарь прыгает в другую сторону
-        const wrongSide = [...root.querySelectorAll(".target")].find((b) => b !== btn);
-        keeperTo(wrongSide);
-        await sleep(450);
-        btn.classList.add("scored");
-        fb.innerHTML = `<span class="ok">ГОЛ! ⚽ ${esc(word.en)}</span>`;
-        Sfx.cheer();
-        Sfx.correct();
-        confetti(30);
-        await Voice.en(word.en);
-        await sleep(500);
-        nextStep();
-      } else {
-        keeperTo(btn);
-        await sleep(450);
-        btn.classList.add("saved");
-        Sfx.wrong();
-        tries++;
-        L.mistakes++;
-        fb.innerHTML = `<span class="bad">Вратарь поймал! Попробуй ещё 💪</span>`;
-        await sleep(900);
-        ball.style.transform = "";
-        btn.classList.remove("saved");
-        btn.classList.add("used");
-        btn.disabled = true;
-        if (tries >= 2) {
-          root.querySelectorAll(".target").forEach((b) => {
-            if (opts[+b.dataset.i] === word) b.classList.add("hint");
-          });
-        }
-        locked = false;
-        say();
-      }
-    };
-  });
-
-  await hintOnce("penalty", "Послушай слово и забей мяч в нужную картинку");
-  await say();
-}
-
-// ---------- 3. Произношение: скажи слово ----------
-async function stepSay({ word }) {
-  const canListen = Recognizer.supported && !Recognizer.broken;
-  const root = lessonShell(`
-    <div class="card say">
-      <div class="tag">Скажи по-английски!</div>
-      <button class="pic-big" id="hear">${picHTML(word, "xl")}</button>
-      <div class="word">${esc(word.en)}</div>
-      <div class="actions">
-        <button class="round-btn" id="hear2" aria-label="Послушать">🔊</button>
-        <button class="round-btn slow" id="slow" aria-label="Медленно">🐢</button>
-      </div>
-      ${
-        canListen
-          ? `<button class="mic-btn" id="mic"><span class="mic-ico">🎤</span><span class="mic-txt">Нажми и скажи</span></button>`
-          : `<div class="nomic">Скажи слово вслух, а мама или папа нажмут кнопку</div>
-             <button class="big-btn next" id="said">✅ Сказал!</button>`
-      }
-      <div class="feedback" id="fb"></div>
-      <button class="skip" id="skip">пропустить</button>
-    </div>`);
-  wireQuit(root);
-  const fb = $("#fb", root);
-  const speak = () => Voice.en(word.en);
-  $("#hear", root).onclick = speak;
-  $("#hear2", root).onclick = speak;
-  $("#slow", root).onclick = () => Voice.en(word.en, true);
-  $("#skip", root).onclick = () => {
-    L.mistakes++;
-    nextStep();
-  };
-
-  const success = async (text) => {
-    fb.innerHTML = `<span class="ok">${text}</span>`;
-    Sfx.correct();
-    Sfx.cheer();
-    confetti(40);
-    await sleep(1300);
-    nextStep();
-  };
-
-  if (!canListen) {
-    $("#said", root).onclick = () => success("Молодец! ⭐");
-  } else {
-    let attempts = 0;
-    let busy = false;
-    const mic = $("#mic", root);
-    mic.onclick = async () => {
-      if (busy) return;
-      busy = true;
-      Sfx.unlock();
-      mic.classList.add("listening");
-      $(".mic-txt", mic).textContent = "Слушаю...";
-      fb.innerHTML = "";
-      let heard = [];
-      try {
-        heard = await Recognizer.listen();
-      } catch (e) {
-        mic.classList.remove("listening");
-        busy = false;
-        if (Recognizer.broken) {
-          fb.innerHTML = `<span class="bad">Нет доступа к микрофону. Разреши микрофон в настройках Safari.</span>`;
-          setTimeout(() => stepSay({ word }), 2500);
-        } else {
-          $(".mic-txt", mic).textContent = "Нажми и скажи";
-        }
-        return;
-      }
-      mic.classList.remove("listening");
-      $(".mic-txt", mic).textContent = "Нажми и скажи";
-      const score = scorePronunciation(word, heard);
-      attempts++;
-      if (score >= 0.6) {
-        busy = true;
-        return success(score >= 0.85 ? "Отлично! ⭐⭐⭐" : "Хорошо! ⭐⭐");
-      }
-      L.mistakes += attempts === 1 ? 1 : 0;
-      if (attempts >= 3) {
-        return success("Хорошая попытка! 👍");
-      }
-      const heardTxt = heard[0] ? ` <small>(я услышал: «${esc(heard[0])}»)</small>` : "";
-      fb.innerHTML = `<span class="bad">${heard.length ? "Почти! Послушай и скажи ещё раз" : "Я ничего не услышал. Скажи громче!"}${heardTxt}</span>`;
-      Sfx.wrong();
-      busy = false;
-      await sleep(400);
-      speak();
-    };
-  }
-
-  await hintOnce("say", "Теперь скажи слово сам. Нажми на микрофон");
-  await speak();
-}
-
 // =================== КОНЕЦ УРОКА ===================
 async function finishLesson() {
   const { lesson } = L;
@@ -508,9 +239,9 @@ async function finishLesson() {
 
   let newSkill = null;
   let newCup = null;
-  if (lesson.skill && !App.progress.skills.includes(lesson.skill)) {
-    App.progress.skills.push(lesson.skill);
-    newSkill = SKILLS.find((s) => s.id === lesson.skill);
+  if (firstTime && lesson.kind !== "match") {
+    newSkill = SKILLS.find((s) => !App.progress.skills.includes(s.id)) || null;
+    if (newSkill) App.progress.skills.push(newSkill.id);
   }
   const levelBefore = App.careerLevel;
   if (lesson.cup && !App.progress.cups.includes(lesson.cup)) {

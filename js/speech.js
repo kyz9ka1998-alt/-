@@ -234,3 +234,22 @@ const Sfx = {
     this.tone(1200, 0.04, { type: "square", vol: 0.04 });
   },
 };
+
+// Оценка фразы: какая доля слов фразы прозвучала (с поправкой на детское произношение).
+function scorePhrase(phrase, heardList) {
+  const target = normalize(phrase.en.replace(/'/g, "")).split(" ").filter(Boolean);
+  const alts = (phrase.alt || []).map((a) => normalize(a.replace(/'/g, "")));
+  let best = 0;
+  for (const h of heardList) {
+    const heard = normalize(h.replace(/'/g, ""));
+    if (!heard) continue;
+    if (alts.includes(heard) || heard === target.join(" ")) return 1;
+    const tokens = heard.split(" ");
+    let hit = 0;
+    for (const t of target) {
+      if (tokens.some((x) => x === t || similarity(x, t) >= 0.67)) hit++;
+    }
+    best = Math.max(best, hit / target.length);
+  }
+  return best;
+}
