@@ -578,7 +578,16 @@ function showSettings() {
         <p><b>Распознавание речи:</b> ${Recognizer.supported ? "✅ поддерживается этим браузером" : "❌ не поддерживается — будет кнопка «Сказал!»"}</p>
         <p><b>Пройдено уроков:</b> ${Object.keys(App.progress.done).length} из ${LESSONS.length}</p>
         <p><b>Слова в программе:</b> ${UNITS.map((u) => u.title).join(", ")}</p>
-        <p class="muted">Прогресс хранится в этом браузере на этом устройстве.</p>
+        <p class="muted">Прогресс хранится на этом устройстве. Чтобы перенести его на другое устройство или сохранить копию — используйте код ниже.</p>
+      </div>
+      <div class="info">
+        <p><b>Код прогресса</b></p>
+        <textarea id="code" class="code" readonly>${esc(exportCode())}</textarea>
+        <div class="row2">
+          <button class="mid-btn" id="copy">📋<span>Скопировать код</span></button>
+          <button class="mid-btn" id="import">📥<span>Вставить код</span></button>
+        </div>
+        <p></p>
       </div>
       <button class="mid-btn danger" id="reset">🗑<span>Сбросить прогресс</span></button>
     </div>`);
@@ -589,6 +598,24 @@ function showSettings() {
     };
   });
   $("#back", root).onclick = showHome;
+  $("#copy", root).onclick = async () => {
+    const ta = $("#code", root);
+    try {
+      await navigator.clipboard.writeText(ta.value);
+    } catch (e) {
+      ta.select();
+      document.execCommand("copy");
+    }
+    alert("Код скопирован. Сохраните его в Заметках или отправьте себе в мессенджер.");
+  };
+  $("#import", root).onclick = () => {
+    const code = prompt("Вставьте код прогресса:");
+    if (!code) return;
+    if (importCode(code)) {
+      alert("Прогресс загружен! ✅");
+      showHome();
+    } else alert("Код не подошёл. Проверьте, что он скопирован целиком.");
+  };
   $("#reset", root).onclick = () => {
     if (confirm("Точно сбросить весь прогресс Романа?")) {
       App.progress = { done: {}, skills: [], cups: [] };
@@ -598,10 +625,31 @@ function showSettings() {
   };
 }
 
+// Код прогресса: прогресс в виде короткой строки, чтобы перенести его на другое устройство.
+function exportCode() {
+  const p = App.progress;
+  const data = { v: 1, d: p.done, s: p.skills, c: p.cups };
+  return "FE1-" + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+}
+function importCode(code) {
+  try {
+    const raw = code.trim().replace(/^FE1-/, "");
+    const d = JSON.parse(decodeURIComponent(escape(atob(raw))));
+    if (!d || typeof d.d !== "object" || !Array.isArray(d.s) || !Array.isArray(d.c)) return false;
+    App.progress = { done: d.d, skills: d.s, cups: d.c };
+    App.save();
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 // =================== СТАРТ ===================
 function boot() {
   App.load();
   Voice.init();
+  // просим браузер не удалять сохранённые данные
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   document.addEventListener("touchstart", () => Sfx.unlock(), { once: true, passive: true });
   document.addEventListener("click", () => Sfx.unlock(), { once: true });
   showHome();

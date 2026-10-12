@@ -273,3 +273,4 @@ button:disabled { cursor: default; }
 .finish .mid-btn { color: #222; }
 .pic.duo { letter-spacing: -0.15em; }
 .target .pic.duo { font-size: 40px; }
+.code { width: 100%; height: 70px; font: 12px ui-monospace, Menlo, monospace; border-radius: 10px; border: 1px solid #ccc; padding: 8px; -webkit-user-select: text; user-select: text; margin-bottom: 10px; }
