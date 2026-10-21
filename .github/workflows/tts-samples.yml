@@ -21,15 +21,16 @@ jobs:
         run: |
           pip install -q edge-tts==7.3.1
           mkdir -p audio/samples
+          edge-tts --list-voices | grep -iE "en-US-Ana|Maisie|ru-RU|Multilingual" || true
           EN="Hello, Roman! Let's play football! Cat. Dog. Is this a bird? Yes, it is. Give me some cheese, please!"
           RU="Привет, Роман! Послушай слово и забей мяч в нужную картинку. Молодец! Ты научился новому трюку!"
-          edge-tts --voice en-US-AnaNeural --rate=-10% --text "$EN" --write-media audio/samples/1_girl_Ana_US.mp3
-          edge-tts --voice en-GB-MaisieNeural --rate=-10% --text "$EN" --write-media audio/samples/2_girl_Maisie_UK.mp3
-          edge-tts --voice en-US-AvaMultilingualNeural --rate=-10% --text "$EN" --write-media audio/samples/3_woman_Ava_US.mp3
-          edge-tts --voice en-US-EmmaMultilingualNeural --rate=-10% --text "$EN" --write-media audio/samples/4_woman_Emma_US.mp3
-          edge-tts --voice en-US-AndrewMultilingualNeural --rate=-10% --text "$EN" --write-media audio/samples/5_man_Andrew_US.mp3
-          edge-tts --voice ru-RU-SvetlanaNeural --text "$RU" --write-media audio/samples/6_ru_Svetlana.mp3
-          edge-tts --voice ru-RU-DariyaNeural --text "$RU" --write-media audio/samples/7_ru_Dariya.mp3
+          edge-tts --voice en-US-AnaNeural --rate=-10% --text "$EN" --write-media audio/samples/1_girl_Ana_US.mp3 || echo "FAIL edge-tts --voice en-US-AnaNeural --rate=-10% --text "$EN" --write-media audio/samples/1_girl_Ana_US.mp3"
+          edge-tts --voice en-GB-MaisieNeural --rate=-10% --text "$EN" --write-media audio/samples/2_girl_Maisie_UK.mp3 || echo "FAIL edge-tts --voice en-GB-MaisieNeural --rate=-10% --text "$EN" --write-media audio/samples/2_girl_Maisie_UK.mp3"
+          edge-tts --voice en-US-AvaMultilingualNeural --rate=-10% --text "$EN" --write-media audio/samples/3_woman_Ava_US.mp3 || echo "FAIL edge-tts --voice en-US-AvaMultilingualNeural --rate=-10% --text "$EN" --write-media audio/samples/3_woman_Ava_US.mp3"
+          edge-tts --voice en-US-EmmaMultilingualNeural --rate=-10% --text "$EN" --write-media audio/samples/4_woman_Emma_US.mp3 || echo "FAIL edge-tts --voice en-US-EmmaMultilingualNeural --rate=-10% --text "$EN" --write-media audio/samples/4_woman_Emma_US.mp3"
+          edge-tts --voice en-US-AndrewMultilingualNeural --rate=-10% --text "$EN" --write-media audio/samples/5_man_Andrew_US.mp3 || echo "FAIL edge-tts --voice en-US-AndrewMultilingualNeural --rate=-10% --text "$EN" --write-media audio/samples/5_man_Andrew_US.mp3"
+          edge-tts --voice ru-RU-SvetlanaNeural --text "$RU" --write-media audio/samples/6_ru_Svetlana.mp3 || echo "FAIL edge-tts --voice ru-RU-SvetlanaNeural --text "$RU" --write-media audio/samples/6_ru_Svetlana.mp3"
+          edge-tts --voice ru-RU-DariyaNeural --text "$RU" --write-media audio/samples/7_ru_Dariya.mp3 || echo "FAIL edge-tts --voice ru-RU-DariyaNeural --text "$RU" --write-media audio/samples/7_ru_Dariya.mp3"
           ls -la audio/samples
       - name: Commit
         run: |
