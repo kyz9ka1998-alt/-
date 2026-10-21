@@ -1,6 +1,6 @@
 // Офлайн-кэш и напоминания.
 // Кэш: сначала сеть (чтобы обновления приходили сразу), без сети — из кэша.
-const CACHE = "football-english-v9";
+const CACHE = "football-english-v10";
 const FILES = ["./", "index.html", "css/style.css", "js/data.js", "js/speech.js", "js/player.js", "js/lesson.js", "js/engage.js", "js/app.js", "manifest.json", "icons/icon-180.png", "icons/icon-192.png"];
 
 self.addEventListener("install", (e) => {

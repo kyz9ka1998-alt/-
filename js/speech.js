@@ -8,16 +8,42 @@ const Voice = {
     load();
     speechSynthesis.onvoiceschanged = load;
   },
+  // Оценка голоса: лучшие — Premium / Enhanced («Улучшенный»), «смешные» и роботизированные — исключаем
+  NOVELTY: ["albert", "bad news", "bahh", "bells", "boing", "bubbles", "cellos", "good news", "jester", "organ", "superstar", "trinoids", "whisper", "wobble", "zarvox", "eddy", "flo", "grandma", "grandpa", "reed", "rocko", "sandy", "shelley", "fred", "junior", "ralph", "kathy", "hysterical", "deranged", "pipe organ"],
+  NICE: ["ava", "zoe", "evan", "samantha", "allison", "susan", "nathan", "tom", "joelle", "noelle", "karen", "daniel", "serena", "kate", "moira", "tessa", "milena", "katya", "yuri", "google"],
+  score(v) {
+    const id = ((v.voiceURI || "") + " " + v.name).toLowerCase();
+    const name = v.name.toLowerCase();
+    if (this.NOVELTY.some((n) => name === n || name.startsWith(n + " ") || id.includes("speech.synthesis.voice." + n.replace(" ", "")) || id.includes("eloquence"))) return -100;
+    let sc = 0;
+    if (id.includes("premium")) sc += 100;
+    else if (id.includes("enhanced") || name.includes("улучш")) sc += 60;
+    if (this.NICE.some((n) => name.startsWith(n))) sc += 20;
+    if (v.localService) sc += 3;
+    if ((v.lang || "").replace("_", "-").toLowerCase() === "en-us") sc += 2;
+    return sc;
+  },
+  list(lang) {
+    const l = lang.slice(0, 2).toLowerCase();
+    return this.voices
+      .filter((v) => v.lang && v.lang.replace("_", "-").toLowerCase().startsWith(l))
+      .map((v) => ({ v, sc: this.score(v) }))
+      .filter((x) => x.sc > -100)
+      .sort((a, b) => b.sc - a.sc)
+      .map((x) => x.v);
+  },
+  quality(v) {
+    const sc = this.score(v);
+    return sc >= 100 ? "⭐ Premium" : sc >= 60 ? "✨ Улучшенный" : "обычный";
+  },
   pick(lang) {
-    const vs = this.voices.filter((v) => v.lang && v.lang.replace("_", "-").toLowerCase().startsWith(lang.toLowerCase()));
-    if (!vs.length) return null;
-    // на iPhone приятнее звучат голоса Samantha / Karen / Daniel; «enhanced/premium» — ещё лучше
-    const pref = ["premium", "enhanced", "samantha", "karen", "daniel", "serena", "milena", "katya", "google"];
-    for (const p of pref) {
-      const v = vs.find((x) => x.name.toLowerCase().includes(p));
+    const key = lang.startsWith("ru") ? "voiceRu" : "voiceEn";
+    const chosen = typeof App !== "undefined" && App.settings[key];
+    if (chosen) {
+      const v = this.voices.find((x) => x.voiceURI === chosen);
       if (v) return v;
     }
-    return vs[0];
+    return this.list(lang)[0] || null;
   },
   // Произнести текст. Возвращает Promise, который завершается после окончания фразы.
   // onBoundary(charIndex) — вызывается, когда голос начинает новое слово (для подсветки)
@@ -31,7 +57,7 @@ const Voice = {
         const v = this.pick(lang.slice(0, 2) === "en" ? lang : lang);
         if (v) u.voice = v;
         u.rate = rate;
-        u.pitch = pitch;
+        u.pitch = v && this.score(v) >= 60 ? 1 + (pitch - 1) * 0.3 : pitch;
         let finished = false;
         const done = () => {
           if (!finished) {

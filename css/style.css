@@ -499,3 +499,7 @@ button:disabled { cursor: default; }
 .can-row { display: flex; align-items: center; gap: 10px; }
 .can-act { background: #fff6c7; border-radius: 50%; width: 78px; height: 78px; display: grid; place-items: center; }
 .can-act .pic { font-size: 48px; }
+.voices label { font-weight: 800; font-size: 14px; display: block; margin-top: 8px; }
+.voice-row { display: flex; gap: 8px; align-items: center; }
+.voice-row select { flex: 1; min-width: 0; font-size: 16px; padding: 10px; border-radius: 12px; border: 2px solid #d9eee1; background: #fff; }
+.voice-row .round-btn { width: 46px; height: 46px; font-size: 20px; flex: none; }

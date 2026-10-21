@@ -378,6 +378,16 @@ function showSettings() {
         <button class="mid-btn" id="push-on">🔔<span>Включить напоминания</span></button>
         <div id="push-out"></div>
       </div>
+      <div class="info voices">
+        <p><b>🗣 Голос</b></p>
+        <p class="muted">Самые живые — <b>⭐ Premium</b> и <b>✨ Улучшенный</b>. Если их нет в списке, скачайте на iPhone:
+        <b>Настройки → Универсальный доступ → Устное содержимое → Голоса → Английский</b> → например <b>Ava (Premium)</b> или <b>Zoe (Premium)</b>;
+        для русского — <b>Русский → Milena (Улучшенный)</b>. Потом закройте и откройте приложение.</p>
+        <label>Английский</label>
+        <div class="voice-row"><select id="vEn"></select><button class="round-btn" id="tEn">▶</button></div>
+        <label>Русские подсказки</label>
+        <div class="voice-row"><select id="vRu"></select><button class="round-btn" id="tRu">▶</button></div>
+      </div>
       <label class="set"><input type="checkbox" id="ruVoice" ${s.ruVoice ? "checked" : ""}> Подсказки голосом на русском</label>
       <label class="set"><input type="checkbox" id="sound" ${s.sound ? "checked" : ""}> Звуки (свисток, трибуны)</label>
       <label class="set"><input type="checkbox" id="unlockAll" ${s.unlockAll ? "checked" : ""}> Открыть все уроки</label>
@@ -398,6 +408,25 @@ function showSettings() {
       </div>
       <button class="mid-btn danger" id="reset">🗑<span>Сбросить прогресс</span></button>
     </div>`);
+  const fillVoices = () => {
+    for (const [sel, lang, key] of [["#vEn", "en", "voiceEn"], ["#vRu", "ru", "voiceRu"]]) {
+      const el = $(sel, root);
+      const list = Voice.list(lang);
+      const cur = Voice.pick(lang);
+      el.innerHTML = list.length
+        ? list.map((v) => `<option value="${esc(v.voiceURI)}" ${cur && cur.voiceURI === v.voiceURI ? "selected" : ""}>${esc(v.name)} · ${Voice.quality(v)}</option>`).join("")
+        : `<option>голоса не найдены</option>`;
+      el.onchange = () => {
+        App.settings[key] = el.value;
+        App.save();
+        lang === "en" ? Voice.say("Hello, Roman! Let's play football!", { rate: 0.8 }) : Voice.say("Привет, Роман! Пора на тренировку!", { lang: "ru-RU", rate: 1 });
+      };
+    }
+  };
+  fillVoices();
+  if ("speechSynthesis" in window) speechSynthesis.addEventListener?.("voiceschanged", fillVoices);
+  $("#tEn", root).onclick = () => Voice.say("Hello, Roman! Let's play football!", { rate: 0.8 });
+  $("#tRu", root).onclick = () => Voice.say("Привет, Роман! Пора на тренировку!", { lang: "ru-RU", rate: 1 });
   root.querySelectorAll(".r-word").forEach((b) => (b.onclick = () => Voice.say(b.dataset.en, { rate: 0.7 })));
   const pushOut = $("#push-out", root);
   const showSub = (json) => {
