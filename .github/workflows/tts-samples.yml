@@ -19,7 +19,7 @@ jobs:
           python-version: "3.12"
       - name: Generate samples
         run: |
-          pip install -q edge-tts==7.0.2
+          pip install -q edge-tts==7.3.1
           mkdir -p audio/samples
           EN="Hello, Roman! Let's play football! Cat. Dog. Is this a bird? Yes, it is. Give me some cheese, please!"
           RU="Привет, Роман! Послушай слово и забей мяч в нужную картинку. Молодец! Ты научился новому трюку!"
