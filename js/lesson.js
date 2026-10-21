@@ -11,8 +11,9 @@ function specialSteps(unit, n) {
   if (unit.counts) pick(unit.counts, n).forEach((c) => out.push({ type: "count", count: c }));
   if (unit.pairs) out.push({ type: "pairs", pairs: pick(unit.pairs, 4), food: true });
   if (unit.missing) out.unshift({ type: "missing", pool: unit.missing });
+  if (unit.canyou) for (let i = 0; i < n + 2; i++) out.unshift(canyouStep(unit));
   if (unit.yesno || unit.sizes) for (let i = 0; i < n + 1; i++) out.unshift(yesnoStep(unit));
-  return out.slice(0, Math.max(n, 1) + (unit.yesno || unit.sizes ? 1 : 0));
+  return out.slice(0, Math.max(n, 1) + (unit.yesno || unit.sizes ? 1 : 0) + (unit.canyou ? 2 : 0));
 }
 
 // «Is this a bird?» — да или нет. Для юнита с размерами: «Is this a big hat?»
@@ -63,7 +64,7 @@ function buildSteps(lesson) {
     (unit.phrases || []).forEach((p) => steps.push({ type: "phrase", phrase: p }));
     pick(unit.dialogs || [], 3).forEach((d) => steps.push({ type: "dialog", dialog: d }));
     pick(unit.builds || [], 2).forEach((b) => steps.push({ type: "build", sentence: b }));
-    if (unit.rhymes || unit.counts || unit.yesno || unit.sizes || unit.missing) steps.push(...specialSteps(unit, 1).filter((x) => x.type !== "pairs"));
+    if (unit.rhymes || unit.counts || unit.yesno || unit.sizes || unit.missing || unit.canyou) steps.push(...specialSteps(unit, 1).filter((x) => x.type !== "pairs"));
     if (unit.pairs) steps.push({ type: "pairs", pairs: pick(unit.pairs, 4), food: true });
     else if (all.length >= 2) steps.push({ type: "pairs", pairs: pick(all, 4).map((w) => ({ left: w, right: w })) });
     pick(all, 3).forEach((w) => steps.push({ type: "recall", word: w, pool: all }));
@@ -1195,3 +1196,47 @@ async function finishStory() {
   confetti(60);
   await Voice.ru("Молодец! Ты прочитал историю!");
 }
+
+// ---------- 16. Can you …? — Yes, I can / No, I can't ----------
+const ACT = { swim: W.swim, fly: W.fly, run: W.run, hop: W.hop, jump: W.jump, sing: W.sing };
+function canyouStep(unit) {
+  const a = pick(unit.canyou, 1)[0];
+  const yes = Math.random() < 0.5;
+  const verb = pick(yes ? a.can : a.cant, 1)[0];
+  return { type: "canyou", who: a.who, verb, yes };
+}
+
+STEP_FN.canyou = async ({ who, verb, yes }) => {
+  const q = `Can you ${verb}?`;
+  const answer = yes
+    ? { en: "Yes, I can.", ru: "Да, умею.", alt: ["yes i can", "yes", "yes can"] }
+    : { en: "No, I can't.", ru: "Нет, не умею.", alt: ["no i cant", "no i can't", "no i cannot", "no"] };
+  const act = ACT[verb];
+  const root = lessonShell(`
+    <div class="card">
+      <div class="tag">❓ Ответь за зверя: умеет или нет?</div>
+      <div class="can-row">${picHTML(who, "xl")}<span class="can-act">${act ? picHTML(act) : ""}</span></div>
+      <button class="bubble" id="hear">🔊 ${esc(q)}</button>
+      <div class="ru">${esc(who.ru)}: ${esc(act ? act.ru : verb)}?</div>
+      <div class="yn-btns">
+        <button class="yn yes" data-ok="${yes ? 1 : 0}">✅ Yes, I can.</button>
+        <button class="yn no" data-ok="${yes ? 0 : 1}">❌ No, I can't.</button>
+      </div>
+      <div class="feedback" id="fb"></div>
+      <div id="reply" class="reply" style="display:none">
+        <div class="sub">Скажи за ${esc(who.ru === "кошка" ? "кошку" : who.ru)}: <b>${esc(answer.en)}</b></div>
+        <div id="speak" class="speak-area"></div>
+      </div>
+    </div>`);
+  const say = () => Voice.say(q, { rate: 0.8 });
+  $("#hear", root).onclick = say;
+  await hintOnce("canyou", "Ответь за зверя: умеет он это делать или нет?");
+  say();
+  await choice(root, { onWrong: () => ($("#fb", root).innerHTML = `<span class="bad">Подумай: ${esc(who.ru)} умеет ${esc(act ? act.ru : verb)}?</span>`) });
+  Sfx.correct();
+  $("#fb", root).innerHTML = `<span class="ok">Правильно!</span>`;
+  $("#reply", root).style.display = "";
+  Voice.say(answer.en, { rate: 0.75 });
+  await speakTask($("#speak", root), answer, { isPhrase: true, prompt: "Нажми и скажи" });
+  nextStep();
+};

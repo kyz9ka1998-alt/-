@@ -14,6 +14,12 @@
 //   builds:  [фраза для сборки из слов]
 
 const W = {
+  // --- уроки 16–17 ---
+  seven: { en: "seven", ru: "семь", ipa: "ˈsevn", read: "сэвн", pic: "7️⃣", alt: ["7", "heaven", "sevan", "kevin", "seventh"] },
+  eight: { en: "eight", ru: "восемь", ipa: "eɪt", read: "эйт", pic: "8️⃣", alt: ["8", "ate", "eat", "hate", "aid"] },
+  nine: { en: "nine", ru: "девять", ipa: "naɪn", read: "найн", pic: "9️⃣", alt: ["9", "nein", "line", "mine", "night"] },
+  ten: { en: "ten", ru: "десять", ipa: "ten", read: "тэн", pic: "🔟", alt: ["10", "tan", "then", "town", "pen"] },
+
   // --- уроки 12–15 ---
   chair: { en: "chair", ru: "стул", ipa: "tʃeə", read: "чеа", pic: "🪑", alt: ["chairs", "cheer", "share", "chair's", "char"] },
   table: { en: "table", ru: "стол", ipa: "ˈteɪbl", read: "тэйбл", pic: { svg: "table", color: "#8fb3e0" }, alt: ["tables", "cable", "able", "label", "tabel"] },
@@ -122,6 +128,11 @@ const W = {
 
 // примеры к словам (из учебника, где возможно)
 const EX = {
+  seven: ["Seven little frogs.", "Семь маленьких лягушек."],
+  eight: ["Eight little frogs.", "Восемь маленьких лягушек."],
+  nine: ["Nine little frogs.", "Девять маленьких лягушек."],
+  ten: ["Ten little frogs on a big brown log.", "Десять маленьких лягушек на большом коричневом бревне."],
+
   chair: ["Sit down on the chair!", "Сядь на стул!"],
   table: ["What's that? It's a table.", "Что это? Это стол."],
   fish: ["What's that? It's a fish.", "Что это? Это рыбка."],
@@ -217,6 +228,12 @@ const EX = {
 Object.keys(EX).forEach((k) => (W[k].ex = EX[k]));
 
 const P = {
+  greyMouse: { en: "I'm a little grey mouse. I live in this big house.", ru: "Я маленькая серая мышка. Я живу в этом большом доме.", read: "айм э литл грэй маус. ай лив ин зис биг хаус", note: "«I live» — «я живу».", alt: [] },
+  canYouSwim: { en: "Can you swim?", ru: "Ты умеешь плавать?", read: "кэн ю суим", note: "«Can you…?» — «Ты умеешь…?»", alt: ["can you swim", "you swim"] },
+  yesICan: { en: "Yes, I can.", ru: "Да, умею.", read: "йес, ай кэн", note: "Ответ «да» на «Can you…?»", alt: ["yes i can", "yes", "yes can"] },
+  noICant: { en: "No, I can't.", ru: "Нет, не умею.", read: "ноу, ай кант", note: "Ответ «нет» на «Can you…?»", alt: ["no i cant", "no i can't", "no i cannot", "no"] },
+  iCanSeeCat: { en: "I can see a cat.", ru: "Я вижу кошку.", read: "ай кэн си э кэт", note: "«I can see» — «я вижу».", alt: ["i can see cat", "i see a cat"] },
+
   whatsThat: { en: "What's that?", ru: "Что то?", read: "уотс зэт", note: "«What's that?» — про то, что далеко. «What's this?» — про то, что рядом.", alt: ["what is that", "whats that", "what that"] },
   itsRat: { en: "It's a rat.", ru: "Это крыса.", read: "итс э рэт", note: "Так отвечают на «What's this?» и «What's that?».", alt: ["it is a rat", "a rat", "its a rat"] },
   comeHere: { en: "Come here, Mike.", ru: "Иди сюда, Майк.", read: "кам хиа, майк", note: "Так зовут кого-то подойти.", alt: ["come here", "come here mike"] },
@@ -524,10 +541,53 @@ const UNITS = [
     ru: "Один, два, три",
     icon: "🔢",
     words: [W.one, W.two, W.three, W.four, W.five, W.six],
-    phrases: [],
+    phrases: [P.greyMouse],
     counts: [{ word: W.teacup, max: 6 }, { word: W.spoon, max: 6 }, { word: W.plate, max: 6 }, { word: W.cat, max: 6 }, { word: W.frog, max: 6 }],
     builds: ["Three frogs.", "Four cups."],
     dialogs: [],
+  },
+  {
+    id: "u16",
+    book: 16,
+    title: "Can you swim?",
+    ru: "Ты умеешь плавать?",
+    icon: "🏊",
+    words: [],
+    phrases: [P.canYouSwim, P.yesICan, P.noICant],
+    // кто что умеет: для задания «Can you …? — Yes, I can / No, I can't»
+    canyou: [
+      { who: W.fish, can: ["swim"], cant: ["fly", "run", "hop"] },
+      { who: W.horse, can: ["run", "jump"], cant: ["fly", "swim"] },
+      { who: W.cow, can: ["run"], cant: ["hop", "fly", "jump"] },
+      { who: W.cat, can: ["run", "jump"], cant: ["fly", "swim"] },
+      { who: W.bird, can: ["fly", "sing"], cant: ["swim", "hop"] },
+      { who: W.frog, can: ["hop", "swim", "jump"], cant: ["fly", "run"] },
+      { who: W.hare, can: ["hop", "run", "jump"], cant: ["fly", "swim"] },
+      { who: W.bear, can: ["run", "swim"], cant: ["fly", "hop"] },
+    ],
+    builds: ["Can you swim?", "Yes, I can.", "No, I can't."],
+    dialogs: [
+      { who: "🐷", whoEn: "pig", line: "Can you hop?", show: W.cow, ru: "Поросёнок спрашивает корову. Ответь за корову!", reply: { en: "No, I can't.", ru: "Нет, не умею.", read: "ноу, ай кант", alt: ["no i cant", "no i can't", "no i cannot", "no"] } },
+      { who: "🐷", whoEn: "pig", line: "Can you run?", show: W.horse, ru: "Поросёнок спрашивает лошадь. Ответь за лошадь!", reply: { en: "Yes, I can.", ru: "Да, умею.", read: "йес, ай кэн", alt: ["yes i can", "yes", "yes can"] } },
+      { who: "🐷", whoEn: "pig", line: "Can you swim?", show: W.fish, ru: "Поросёнок спрашивает рыбку. Ответь за рыбку!", reply: { en: "Yes, I can.", ru: "Да, умею.", read: "йес, ай кэн", alt: ["yes i can", "yes", "yes can"] } },
+      { who: "🐷", whoEn: "pig", line: "Can you fly?", show: W.cat, ru: "Поросёнок спрашивает кошку. Ответь за кошку!", reply: { en: "No, I can't.", ru: "Нет, не умею.", read: "ноу, ай кант", alt: ["no i cant", "no i can't", "no i cannot", "no"] } },
+      { who: "🐷", whoEn: "pig", line: "Can you fly?", show: W.bear, ru: "Медведь хочет пошутить… но правда — не умеет! Ответь за медведя:", reply: { en: "Oh, no, I can't.", ru: "Ой, нет, не умею.", read: "оу, ноу, ай кант", alt: ["oh no i cant", "no i cant", "oh no"] } },
+    ],
+  },
+  {
+    id: "u17",
+    book: 17,
+    title: "I can see",
+    ru: "Я вижу",
+    icon: "👀",
+    words: [W.seven, W.eight, W.nine, W.ten],
+    phrases: [P.iCanSeeCat],
+    counts: [{ word: W.frog, max: 10 }, { word: W.cat, max: 10 }, { word: W.dog, max: 10 }, { word: W.bird, max: 9 }, { word: W.cow, max: 8 }],
+    builds: ["I can see a cat.", "Ten little frogs."],
+    dialogs: [
+      { who: "👧", whoEn: "girl", line: "What can you see?", show: W.horse, ru: "Джейн спрашивает, что ты видишь. Ответь!", reply: { en: "I can see a horse.", ru: "Я вижу лошадь.", read: "ай кэн си э хос", alt: ["i can see horse", "i see a horse", "a horse"] } },
+      { who: "👦", whoEn: "boy", line: "What can you see?", show: W.fox, ru: "Майк спрашивает, что ты видишь. Ответь!", reply: { en: "I can see a fox.", ru: "Я вижу лису.", read: "ай кэн си э фокс", alt: ["i can see fox", "i see a fox", "a fox"] } },
+    ],
   },
   {
     id: "u18",
@@ -780,6 +840,20 @@ const STORIES = [
     questions: [
       { q: "Кто опоздал?", opts: ["🐭", "🐻", "🐓"], a: 0 },
       { q: "Как спросить «Можно войти?»", opts: ["May I come in?", "Please come in.", "I'm late."], a: 0 },
+    ],
+  },
+  {
+    id: "s-song", unit: "u17", title: "One — a cat!", icon: "🎵",
+    panels: [
+      { bg: "🎵", who: "👧", name: "Jane", text: "One — a cat, two — a bat,", ru: "Раз — кошка, два — летучая мышь,", show: "🐱🦇" },
+      { bg: "🎵", who: "👧", name: "Jane", text: "Three — a dog, four — a frog,", ru: "Три — собака, четыре — лягушка,", show: "🐶🐸" },
+      { bg: "🎵", who: "👧", name: "Jane", text: "Five — a hare, six — a bear.", ru: "Пять — заяц, шесть — медведь.", show: "🐰🐻" },
+      { bg: "🎵", who: "👦", name: "Mike", text: "One, two, three, four, five, six — one!", ru: "Раз, два, три, четыре, пять, шесть — раз!" },
+      { bg: "🌳", who: "👦", name: "Mike", text: "I can see seven, eight, nine, ten frogs!", ru: "Я вижу семь, восемь, девять, десять лягушек!", show: "🐸🐸🐸" },
+    ],
+    questions: [
+      { q: "Кто в песенке под номером «four»?", opts: ["🐸 a frog", "🐶 a dog", "🐻 a bear"], a: 0 },
+      { q: "Как по-английски «десять»?", opts: ["ten", "nine", "seven"], a: 0 },
     ],
   },
   {

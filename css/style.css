@@ -496,3 +496,6 @@ button:disabled { cursor: default; }
 .tr-wrap canvas { background: #fff; border: 3px solid #d9eee1; border-radius: 20px; touch-action: none; }
 .tr-bar { width: 100%; max-width: 300px; height: 10px; background: #e3ece6; border-radius: 6px; overflow: hidden; }
 .tr-bar b { display: block; height: 100%; width: 0; background: var(--green); transition: width .2s; }
+.can-row { display: flex; align-items: center; gap: 10px; }
+.can-act { background: #fff6c7; border-radius: 50%; width: 78px; height: 78px; display: grid; place-items: center; }
+.can-act .pic { font-size: 48px; }
