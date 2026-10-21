@@ -1,0 +1,34 @@
+# Ежедневное напоминание на iPhone (Web Push).
+# Нужны секреты репозитория: VAPID_PRIVATE_KEY и PUSH_SUBSCRIPTION
+# (код из приложения: ⚙️ → Напоминания; для нескольких устройств — JSON-массив кодов).
+name: Daily reminder
+
+on:
+  schedule:
+    - cron: "0 15 * * *" # 15:00 UTC = 18:00 по Москве
+  workflow_dispatch: # кнопка «Run workflow» — отправить напоминание сейчас (для проверки)
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send reminder
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          PUSH_SUBSCRIPTION: ${{ secrets.PUSH_SUBSCRIPTION }}
+          VAPID_PUBLIC_KEY: BNaoW5RNYAlQldEnJmUK6SD2Cv7VCRB3rGM0tSTjuSFNqAMubKH2bcNTQ48PbeLJCTV2lpuDK6AXe38NULPmVoA
+        run: |
+          if [ -z "$VAPID_PRIVATE_KEY" ] || [ -z "$PUSH_SUBSCRIPTION" ]; then
+            echo "Секреты не настроены — напоминание не отправлено."
+            exit 0
+          fi
+          npm install --no-save web-push@3.6.7 >/dev/null
+          node -e '
+            const wp = require("web-push");
+            wp.setVapidDetails("https://kyz9ka1998-alt.github.io/-/", process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
+            let subs = JSON.parse(process.env.PUSH_SUBSCRIPTION);
+            if (!Array.isArray(subs)) subs = [subs];
+            Promise.all(subs.map((s) => wp.sendNotification(s, "{}", { TTL: 3600 })
+              .then(() => console.log("✓ отправлено"))
+              .catch((e) => { console.log("✗ ошибка", e.statusCode, e.body); process.exitCode = 1; })));
+          '

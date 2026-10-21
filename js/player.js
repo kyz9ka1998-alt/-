@@ -319,11 +319,11 @@ function sceneSVG(uid) {
   <polygon class="beam" points="312,18 200,170 380,170" fill="url(#beam${uid})" style="animation-delay:2s"/>
   <g>
     <rect x="-16" y="8" width="8" height="70" fill="#2b2b3a"/>
-    <rect x="-26" y="2" width="28" height="14" rx="-31" fill="#3a3a4d"/>
+    <rect x="-26" y="2" width="28" height="14" rx="3" fill="#3a3a4d"/>
     <circle cx="-19" cy="9" r="3.4" fill="#fffbe0"/><circle cx="-12" cy="9" r="3.4" fill="#fffbe0"/><circle cx="-5" cy="9" r="3.4" fill="#fffbe0"/>
     <circle cx="-12" cy="9" r="20" fill="url(#glow${uid})" opacity=".55"/>
     <rect x="308" y="8" width="8" height="70" fill="#2b2b3a"/>
-    <rect x="298" y="2" width="28" height="14" rx="37" fill="#3a3a4d"/>
+    <rect x="298" y="2" width="28" height="14" rx="3" fill="#3a3a4d"/>
     <circle cx="305" cy="9" r="3.4" fill="#fffbe0"/><circle cx="312" cy="9" r="3.4" fill="#fffbe0"/><circle cx="319" cy="9" r="3.4" fill="#fffbe0"/>
     <circle cx="312" cy="9" r="20" fill="url(#glow${uid})" opacity=".55"/>
   </g>

@@ -693,3 +693,142 @@ function buildLessons() {
 }
 
 const LESSONS = buildLessons();
+
+// Истории-комиксы: голос читает, слова подсвечиваются. Открываются после первого урока своей темы.
+// Кадр: { bg — фон-эмодзи, who — кто говорит, name, text, ru — перевод, show — что показано крупно }
+const STORIES = [
+  {
+    id: "s-hello", unit: "u02", title: "Hello, Mike!", icon: "👋",
+    panels: [
+      { bg: "🌳", who: "👦", name: "Mike", text: "Hello! I'm Mike.", ru: "Привет! Я Майк." },
+      { bg: "🌳", who: "👧", name: "Jane", text: "Hello! I'm Jane.", ru: "Привет! Я Джейн." },
+      { bg: "🌳", who: "👦", name: "Mike", text: "What's your name?", ru: "Как тебя зовут?", show: "🐶" },
+      { bg: "🌳", who: "🐶", name: "Dog", text: "Woof! I'm Rex.", ru: "Гав! Я Рекс." },
+      { bg: "🌙", who: "👧", name: "Jane", text: "Goodbye, Mike! Goodbye, Rex!", ru: "Пока, Майк! Пока, Рекс!" },
+    ],
+    questions: [
+      { q: "Как зовут девочку?", opts: ["Jane", "Mike", "Rex"], a: 0 },
+      { q: "Кто такой Rex?", opts: ["🐶 a dog", "🐱 a cat", "👦 a boy"], a: 0 },
+    ],
+  },
+  {
+    id: "s-who", unit: "u06", title: "Who are you?", icon: "🦊",
+    panels: [
+      { bg: "🌲", who: "👦", name: "Mike", text: "Who are you?", ru: "Ты кто?", show: "🐻" },
+      { bg: "🌲", who: "🐻", name: "Bear", text: "I'm a bear.", ru: "Я медведь." },
+      { bg: "🌲", who: "👦", name: "Mike", text: "Who are you?", ru: "А ты кто?", show: "🦊" },
+      { bg: "🌲", who: "🦊", name: "Fox", text: "I'm a fox.", ru: "Я лиса." },
+      { bg: "🌲", who: "🐸", name: "Frog", text: "And I'm a frog!", ru: "А я лягушка!" },
+      { bg: "🌙", who: "👦", name: "Mike", text: "Goodbye, you all!", ru: "До свидания всем!" },
+    ],
+    questions: [
+      { q: "Кто сказал «I'm a fox»?", opts: ["🦊", "🐻", "🐸"], a: 0 },
+      { q: "Как спросить «Ты кто?»", opts: ["Who are you?", "What's your name?", "Goodbye!"], a: 0 },
+    ],
+  },
+  {
+    id: "s-ican", unit: "u07", title: "I can!", icon: "💪",
+    panels: [
+      { bg: "🏞️", who: "🐰", name: "Hare", text: "I'm a hare. I can hop.", ru: "Я заяц. Я умею скакать." },
+      { bg: "🏞️", who: "🐶", name: "Dog", text: "I'm a dog. I can run.", ru: "Я собака. Я умею бегать." },
+      { bg: "🏞️", who: "🐻", name: "Bear", text: "I'm a bear. I can jump.", ru: "Я медведь. Я умею прыгать." },
+      { bg: "🌊", who: "🐸", name: "Frog", text: "I'm a frog. I can swim.", ru: "Я лягушка. Я умею плавать." },
+      { bg: "🏟️", who: "👦", name: "Roman", text: "I'm Roman. I can kick the ball!", ru: "Я Роман. Я умею бить по мячу!", show: "⚽" },
+    ],
+    questions: [
+      { q: "Что умеет лягушка?", opts: ["swim", "hop", "run"], a: 0 },
+      { q: "Кто умеет скакать (hop)?", opts: ["🐰", "🐻", "🐶"], a: 0 },
+    ],
+  },
+  {
+    id: "s-this", unit: "u08", title: "What's this?", icon: "🐭",
+    panels: [
+      { bg: "🏫", who: "🐭", name: "Mouse", text: "What's this?", ru: "Что это?", show: "🕰️" },
+      { bg: "🏫", who: "🐀", name: "Rat", text: "It's a clock.", ru: "Это часы." },
+      { bg: "🏫", who: "🐭", name: "Mouse", text: "What's this?", ru: "Что это?", show: "🚗" },
+      { bg: "🏫", who: "🐀", name: "Rat", text: "It's a car.", ru: "Это машина." },
+      { bg: "🏫", who: "🐭", name: "Mouse", text: "Good! Wake up! Stand up!", ru: "Молодец! Проснись! Встань!" },
+    ],
+    questions: [
+      { q: "Что мышка показала первым?", opts: ["🕰️ a clock", "🚗 a car", "⭐ a star"], a: 0 },
+      { q: "«It's a car» — это…", opts: ["Это машина", "Это часы", "Это кошка"], a: 0 },
+    ],
+  },
+  {
+    id: "s-isthis", unit: "u09", title: "Is this a bird?", icon: "🎨",
+    panels: [
+      { bg: "🖼️", who: "🐸", name: "Frog", text: "Is this a bird?", ru: "Это птичка?", show: "🐦" },
+      { bg: "🖼️", who: "🐻", name: "Bear", text: "Yes, it is.", ru: "Да." },
+      { bg: "🖼️", who: "🐸", name: "Frog", text: "Is this a chick?", ru: "Это цыплёнок?", show: "🐴" },
+      { bg: "🖼️", who: "🐻", name: "Bear", text: "No, it isn't. It's a horse.", ru: "Нет. Это лошадь." },
+    ],
+    questions: [
+      { q: "Что медведь нарисовал вторым?", opts: ["🐴 a horse", "🐥 a chick", "🐦 a bird"], a: 0 },
+      { q: "Как сказать «Нет»?", opts: ["No, it isn't.", "Yes, it is.", "Hello!"], a: 0 },
+    ],
+  },
+  {
+    id: "s-comein", unit: "u14", title: "May I come in?", icon: "🚪",
+    panels: [
+      { bg: "🏡", who: "🐻", name: "Bear", text: "May I come in?", ru: "Можно войти?" },
+      { bg: "🏡", who: "🐰", name: "Hare", text: "Please come in.", ru: "Входи, пожалуйста." },
+      { bg: "🏡", who: "🐓", name: "Rooster", text: "May I come in?", ru: "Можно войти?" },
+      { bg: "🏡", who: "🐰", name: "Hare", text: "Please come in.", ru: "Входи, пожалуйста." },
+      { bg: "🏡", who: "🐭", name: "Mouse", text: "I'm sorry. I'm late.", ru: "Извините, я опоздала." },
+      { bg: "🏡", who: "🐰", name: "Hare", text: "Please come in!", ru: "Входи, пожалуйста!" },
+    ],
+    questions: [
+      { q: "Кто опоздал?", opts: ["🐭", "🐻", "🐓"], a: 0 },
+      { q: "Как спросить «Можно войти?»", opts: ["May I come in?", "Please come in.", "I'm late."], a: 0 },
+    ],
+  },
+  {
+    id: "s-cats", unit: "u18", title: "One cat, two cats", icon: "🐱",
+    panels: [
+      { bg: "🌅", who: "👧", name: "Jane", text: "Good morning! I'm glad to see you!", ru: "Доброе утро! Рада тебя видеть!" },
+      { bg: "🏡", who: "👧", name: "Jane", text: "I can see one cat.", ru: "Я вижу одну кошку.", show: "🐱" },
+      { bg: "🏡", who: "👦", name: "Mike", text: "I can see two dogs.", ru: "Я вижу двух собак.", show: "🐶🐶" },
+      { bg: "🌊", who: "👧", name: "Jane", text: "I can see three frogs!", ru: "Я вижу трёх лягушек!", show: "🐸🐸🐸" },
+    ],
+    questions: [
+      { q: "Сколько лягушек?", opts: ["three", "two", "one"], a: 0 },
+      { q: "«Good morning» — это…", opts: ["Доброе утро", "До свидания", "Спасибо"], a: 0 },
+    ],
+  },
+  {
+    id: "s-hungry", unit: "u21", title: "Give me some cheese", icon: "🧀",
+    panels: [
+      { bg: "🏡", who: "🐭", name: "Mouse", text: "I'm hungry. Give me some cheese.", ru: "Я голодная. Дай мне сыра.", show: "🧀" },
+      { bg: "🏡", who: "🐰", name: "Hare", text: "Here you are!", ru: "Вот, держи!" },
+      { bg: "🏡", who: "🐱", name: "Cat", text: "I'm hungry. Give me some milk.", ru: "Я голодная. Дай мне молока.", show: "🥛" },
+      { bg: "🏡", who: "🐰", name: "Hare", text: "Here you are!", ru: "Вот, держи!" },
+      { bg: "🌲", who: "🦊", name: "Fox", text: "I'm hungry. Give me a yellow chick.", ru: "Я голодная. Дай мне жёлтого цыплёнка.", show: "🐥" },
+      { bg: "🌲", who: "🐰", name: "Hare", text: "Oh, no!", ru: "О нет!" },
+    ],
+    questions: [
+      { q: "Что попросила лиса?", opts: ["🐥 a chick", "🧀 cheese", "🥛 milk"], a: 0 },
+      { q: "Что ответил заяц лисе?", opts: ["Oh, no!", "Here you are!", "With pleasure!"], a: 0 },
+    ],
+  },
+  {
+    id: "s-football", unit: "football", title: "Let's play football!", icon: "⚽",
+    panels: [
+      { bg: "🏟️", who: "👦", name: "Roman", text: "Let's play football!", ru: "Давай играть в футбол!" },
+      { bg: "🏟️", who: "👧", name: "Jane", text: "With pleasure!", ru: "С удовольствием!" },
+      { bg: "🏟️", who: "👦", name: "Roman", text: "Run! Kick the ball!", ru: "Беги! Бей по мячу!", show: "⚽" },
+      { bg: "🏟️", who: "🧑‍🦱", name: "Coach", text: "Goal! Goal! Goal!", ru: "Гол! Гол! Гол!", show: "🥅" },
+    ],
+    questions: [
+      { q: "Что крикнул тренер?", opts: ["Goal!", "Hello!", "Stop!"], a: 0 },
+      { q: "«With pleasure» — это…", opts: ["С удовольствием", "Нет", "Извини"], a: 0 },
+    ],
+  },
+];
+
+function availableStories() {
+  return STORIES.filter((s) => {
+    if (App.settings.unlockAll) return true;
+    const ui = UNITS.findIndex((u) => u.id === s.unit);
+    return LESSONS.some((l) => l.unit === ui && l.id in App.progress.done);
+  });
+}

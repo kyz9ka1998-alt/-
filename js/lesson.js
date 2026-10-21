@@ -38,6 +38,7 @@ function buildSteps(lesson) {
     words.forEach((w) => steps.push({ type: "intro", word: w }));
     shuffle(words).forEach((w) => steps.push({ type: "penalty", word: w, pool: words }));
     pick(words, 3).forEach((w) => steps.push({ type: "read", word: w, pool: all }));
+    steps.push(...traceSteps(words, 1));
     steps.push({ type: "pairs", pairs: words.map((w) => ({ left: w, right: w })) });
     steps.push(...specialSteps(unit, 1));
     pick(words, 2).forEach((w) => steps.push({ type: "say", word: w }));
@@ -46,15 +47,19 @@ function buildSteps(lesson) {
     words.forEach((w) => steps.push({ type: "intro", word: w }));
     shuffle(words).forEach((w) => steps.push({ type: "penalty", word: w, pool: words }));
     shuffle(words).forEach((w) => steps.push({ type: "read", word: w, pool: all }));
+    steps.push(...traceSteps(words, 1));
     steps.push({ type: "pairs", pairs: words.map((w) => ({ left: w, right: w })) });
     shuffle(words).forEach((w) => steps.push({ type: "say", word: w }));
   } else if (lesson.kind === "train2") {
     words.forEach((w) => steps.push({ type: "intro", word: w }));
     shuffle(words).forEach((w) => steps.push({ type: "penalty", word: w, pool: words }));
     shuffle(words).forEach((w) => steps.push({ type: "read", word: w, pool: all }));
+    steps.push(...traceSteps(words, 1));
     steps.push(...specialSteps(unit, 2));
     shuffle(words).forEach((w) => steps.push({ type: "recall", word: w, pool: all }));
   } else {
+    const story = STORIES.find((st) => st.unit === unit.id);
+    if (story) steps.push({ type: "story", story });
     (unit.phrases || []).forEach((p) => steps.push({ type: "phrase", phrase: p }));
     pick(unit.dialogs || [], 3).forEach((d) => steps.push({ type: "dialog", dialog: d }));
     pick(unit.builds || [], 2).forEach((b) => steps.push({ type: "build", sentence: b }));
@@ -67,10 +72,16 @@ function buildSteps(lesson) {
   return steps;
 }
 
+// обводка: короткие слова (до 4 букв), без пробелов
+function traceSteps(words, n) {
+  const ok = words.filter((w) => /^[a-z]{2,4}$/i.test(w.en));
+  return pick(ok, n).map((w) => ({ type: "trace", word: w }));
+}
+
 function startLesson(index) {
   Sfx.unlock();
   const lesson = LESSONS[index];
-  L = { index, lesson, unit: UNITS[lesson.unit], steps: buildSteps(lesson), pos: 0, mistakes: 0, saidTypes: new Set() };
+  L = { index, lesson, unit: UNITS[lesson.unit], steps: buildSteps(lesson), pos: 0, mistakes: 0, saidTypes: new Set(), startedAt: Date.now() };
   Sfx.whistle();
   runStep();
 }
@@ -100,7 +111,7 @@ function nextStep() {
   // статистика по слову для режима «Повторение»
   if (step.word && step.type !== "intro") recordWord(step.word, L.mistakes === L.stepMistakes);
   L.pos++;
-  if (L.pos >= L.steps.length) L.lesson.kind === "review" ? finishReview() : finishLesson();
+  if (L.pos >= L.steps.length) L.lesson.kind === "review" ? finishReview() : L.lesson.kind === "story" ? finishStory() : finishLesson();
   else runStep();
 }
 
@@ -162,6 +173,7 @@ function speakTask(box, target, { isPhrase = false, prompt = "Нажми и ск
       : `<div class="nomic">Скажи вслух, а мама или папа нажмут кнопку</div><button class="big-btn next said">✅ Сказал!</button><div class="feedback"></div>`;
     const fb = $(".feedback", box);
     const done = async (text) => {
+      track("speak");
       await celebrate(fb, text);
       await sleep(1100);
       resolve();
@@ -199,6 +211,10 @@ function speakTask(box, target, { isPhrase = false, prompt = "Нажми и ск
       attempts++;
       if (score >= 0.6) return done(score >= 0.85 ? "Отлично! ⭐⭐⭐" : "Хорошо! ⭐⭐");
       if (attempts === 1) L.mistakes++;
+      if (!isPhrase) {
+        const ws = (App.progress.words[target.en] ||= { box: 0, due: 0 });
+        ws.sayErr = (ws.sayErr || 0) + 1;
+      }
       if (attempts >= 3) return done("Хорошая попытка! 👍");
       const heardTxt = heard[0] ? ` <small>(я услышал: «${esc(heard[0])}»)</small>` : "";
       fb.innerHTML = `<span class="bad">${heard.length ? "Почти! Послушай и скажи ещё раз" : "Я ничего не услышал. Скажи громче!"}${heardTxt}</span>`;
@@ -319,6 +335,7 @@ STEP_FN.penalty = async ({ word, pool }) => {
         keeperTo([...root.querySelectorAll(".target")].find((b) => b !== btn));
         await sleep(450);
         btn.classList.add("scored");
+        track("goal");
         await celebrate(fb, `ГОЛ! ⚽ ${esc(word.en)} — ${esc(word.ru)}`);
         await Voice.en(word.en);
         await sleep(500);
@@ -361,6 +378,7 @@ STEP_FN.read = async ({ word, pool }) => {
     </div>`);
   hintOnce("read", "Прочитай слова и выбери, какое подходит к картинке");
   await choice(root, { onWrong: (b) => ($("#fb", root).innerHTML = `<span class="bad">Это не то слово. Попробуй ещё!</span>`) });
+  track("read");
   await celebrate($("#fb", root), `Верно! ${esc(word.en)} — ${esc(word.ru)}`, { big: false });
   await Voice.en(word.en);
   await sleep(500);
@@ -504,6 +522,7 @@ STEP_FN.pairs = async ({ pairs, food }) => {
       };
     });
   });
+  track("pairs");
   await celebrate(fb, "Все пары найдены! 🎉");
   await sleep(1000);
   nextStep();
@@ -667,6 +686,7 @@ STEP_FN.build = async ({ sentence }) => {
       };
     });
   });
+  track("build");
   await celebrate($("#fb", root), "Отлично собрано! 🧩");
   await say();
   await sleep(400);
@@ -682,7 +702,10 @@ const today = () => Math.floor((Date.now() - new Date().getTimezoneOffset() * 60
 function recordWord(word, ok) {
   const st = (App.progress.words[word.en] ||= { box: 0, due: 0 });
   if (ok) st.box = Math.min(st.box + 1, BOX_DAYS.length - 1);
-  else st.box = 0;
+  else {
+    st.box = 0;
+    st.err = (st.err || 0) + 1;
+  }
   st.due = today() + BOX_DAYS[st.box];
   App.save();
 }
@@ -719,8 +742,9 @@ function startReview() {
   words.forEach((w, i) => steps.push({ type: kinds[i % 3], word: w, pool }));
   words.slice(0, 2).forEach((w) => steps.push({ type: "say", word: w }));
   if (words.length >= 3) steps.splice(3, 0, { type: "pairs", pairs: pick(words, 4).map((w) => ({ left: w, right: w })) });
+  steps.push(...traceSteps(words, 1));
   const lesson = { id: "review", kind: "review", title: "Повторение", unit: 0, words };
-  L = { index: -1, lesson, unit: UNITS[0], steps: shuffle(steps), pos: 0, mistakes: 0, saidTypes: new Set() };
+  L = { index: -1, lesson, unit: UNITS[0], steps: shuffle(steps), pos: 0, mistakes: 0, saidTypes: new Set(), startedAt: Date.now() };
   Sfx.whistle();
   runStep();
 }
@@ -728,6 +752,8 @@ function startReview() {
 async function finishReview() {
   const stars = L.mistakes === 0 ? 3 : L.mistakes <= 2 ? 2 : 1;
   App.progress.reviews = (App.progress.reviews || 0) + 1;
+  const sr = markTrained(Math.min(30, (Date.now() - L.startedAt) / 60000), L.mistakes);
+  track("review");
   App.save();
   const left = dueWords().length;
   const root = render(`
@@ -736,6 +762,7 @@ async function finishReview() {
       <div class="fin-stars">${[1, 2, 3].map((i) => `<span class="${i <= stars ? "on" : ""}" style="animation-delay:${i * 0.25}s">⭐</span>`).join("")}</div>
       <div class="stage-wrap pitch small"><div id="stage" class="stage"></div></div>
       <div class="fin-sub">${L.lesson.words.map((w) => esc(w.en)).join(" · ")}</div>
+      ${streakBannerHTML(sr)}
       <div class="fin-note">${left ? `Ещё слов на повторение: ${left}` : "На сегодня всё повторено! 💪"}</div>
       <div class="row2">
         <button class="mid-btn" id="home">🏠<span>Домой</span></button>
@@ -830,3 +857,341 @@ STEP_FN.missing = async ({ pool }) => {
   await sleep(400);
   nextStep();
 };
+
+// Баннер серии на экране окончания урока
+function streakBannerHTML(sr) {
+  if (!sr || !sr.grew) return `<div class="streak-banner small">🔥 Серия: ${sr ? sr.count : streakNow()} ${plural(sr ? sr.count : streakNow(), "день", "дня", "дней")}</div>`;
+  return `<div class="streak-banner">
+    <span class="sb-fire">🔥</span>
+    <span><b>${sr.count}</b> ${plural(sr.count, "день", "дня", "дней")} подряд!</span>
+    ${sr.usedFreeze ? `<small>🧊 Заморозка спасла серию!</small>` : ""}
+    ${sr.earnedFreeze ? `<small>🧊 +1 заморозка — спасёт серию, если пропустишь день</small>` : ""}
+  </div>`;
+}
+
+// ---------- 14. История с подсветкой слов ----------
+const findWord = (tok) => {
+  const t = tok.toLowerCase().replace(/[^a-z']/g, "");
+  return Object.values(W).find((w) => w.en === t) || null;
+};
+
+function wordSpans(text) {
+  let pos = 0;
+  return text
+    .split(" ")
+    .map((tok) => {
+      const start = text.indexOf(tok, pos);
+      pos = start + tok.length;
+      return `<span class="sw" data-i="${start}" data-tok="${esc(tok)}">${esc(tok)}</span>`;
+    })
+    .join(" ");
+}
+
+// Читает текст и подсвечивает слова (по событиям голоса или по таймеру, если их нет)
+async function readHighlighted(el, text, { pitch = 1, rate = 0.75 } = {}) {
+  const spans = [...el.querySelectorAll(".sw")];
+  const mark = (span) => {
+    spans.forEach((s) => s.classList.remove("hl"));
+    if (span) span.classList.add("hl");
+  };
+  let gotBoundary = false;
+  const timers = [];
+  let t = 150;
+  spans.forEach((sp) => {
+    timers.push(setTimeout(() => !gotBoundary && mark(sp), t));
+    t += (260 + sp.textContent.length * 70) / rate;
+  });
+  await Voice.say(text, {
+    rate,
+    pitch,
+    onBoundary: (ci) => {
+      gotBoundary = true;
+      let cur = null;
+      for (const sp of spans) if (+sp.dataset.i <= ci) cur = sp;
+      mark(cur);
+    },
+  });
+  timers.forEach(clearTimeout);
+  mark(null);
+}
+
+const STORY_PITCH = { "👦": 1.25, "👧": 1.5, "🐶": 0.9, "🐻": 0.6, "🦊": 0.95, "🐸": 1.4, "🐰": 1.45, "🐭": 1.7, "🐀": 1.1, "🐓": 1.2, "🐱": 1.35, "🧑‍🦱": 0.85 };
+
+STEP_FN.story = async ({ story }) => {
+  for (let i = 0; i < story.panels.length; i++) {
+    const pn = story.panels[i];
+    const root = lessonShell(`
+      <div class="card story">
+        <div class="tag">📖 ${esc(story.title)} <small>${i + 1}/${story.panels.length}</small></div>
+        <div class="panel">
+          <span class="p-bg">${pn.bg}</span>
+          ${pn.show ? `<span class="p-show">${pn.show}</span>` : ""}
+          <div class="p-who"><span class="p-ava">${pn.who}</span><small>${esc(pn.name)}</small></div>
+          <div class="p-bubble" id="txt">${wordSpans(pn.text)}</div>
+        </div>
+        <button class="ru-toggle" id="rut">🇷🇺 перевод</button>
+        <div class="p-ru" id="ru" style="visibility:hidden">${esc(pn.ru)}</div>
+        <div class="word-pop" id="pop"></div>
+        <div class="actions"><button class="round-btn" id="again">🔊</button><button class="round-btn slow" id="slow">🐢</button></div>
+      </div>
+      <button class="big-btn next" id="next">Дальше ➜</button>`);
+    const txt = $("#txt", root);
+    const pitch = STORY_PITCH[pn.who] || 1;
+    const read = (rate) => readHighlighted(txt, pn.text, { pitch, rate });
+    $("#again", root).onclick = () => read(0.75);
+    $("#slow", root).onclick = () => read(0.5);
+    $("#rut", root).onclick = () => ($("#ru", root).style.visibility = "visible");
+    txt.querySelectorAll(".sw").forEach((sp) => {
+      sp.onclick = () => {
+        const w = findWord(sp.dataset.tok);
+        Voice.say(sp.dataset.tok.replace(/[^a-z' ]/gi, ""), { rate: 0.7 });
+        $("#pop", root).innerHTML = w ? `<b>${esc(w.en)}</b> — ${esc(w.ru)} <small>«${esc(w.read)}»</small>` : `<b>${esc(sp.dataset.tok)}</b>`;
+      };
+    });
+    if (i === 0) await hintOnce("story", "Послушай историю. Нажми на слово, чтобы услышать его отдельно");
+    await new Promise((resolve) => {
+      $("#next", root).onclick = resolve;
+      read(0.75);
+    });
+    Voice.stop();
+  }
+  // вопросы по истории
+  for (const qn of story.questions) {
+    const order = shuffle(qn.opts.map((o, i) => ({ o, i })));
+    const root = lessonShell(`
+      <div class="card">
+        <div class="tag">📖 Вопрос по истории</div>
+        <div class="sub big-q">${esc(qn.q)}</div>
+        <div class="word-opts">${order.map(({ o, i }) => `<button class="word-opt" data-ok="${i === qn.a ? 1 : 0}" data-t="${esc(o)}">${esc(o)}</button>`).join("")}</div>
+        <div class="feedback" id="fb"></div>
+      </div>`);
+    Voice.ru(qn.q);
+    root.querySelectorAll(".word-opt").forEach((b) => b.addEventListener("click", () => /[a-z]/i.test(b.dataset.t) && Voice.say(b.dataset.t.replace(/[^a-z' ,.!?]/gi, ""), { rate: 0.8 })));
+    await choice(root, { onWrong: () => ($("#fb", root).innerHTML = `<span class="bad">Вспомни историю! Попробуй ещё</span>`) });
+    await celebrate($("#fb", root), "Правильно! ⭐", { big: false });
+    await sleep(900);
+  }
+  track("story");
+  App.progress.storiesRead = [...new Set([...(App.progress.storiesRead || []), story.id])];
+  App.save();
+  nextStep();
+};
+
+// ---------- 15. Обведи букву пальцем ----------
+const TRACE_FONT = '900 210px "Arial Rounded MT Bold", ui-rounded, "SF Pro Rounded", "Helvetica Neue", Arial, sans-serif';
+
+STEP_FN.trace = async ({ word }) => {
+  const letters = word.en.toLowerCase().split("");
+  for (let li = 0; li < letters.length; li++) {
+    const ch = letters[li];
+    const root = lessonShell(`
+      <div class="card trace">
+        <div class="tag">✍️ Обведи букву пальцем</div>
+        <div class="tr-word">${letters.map((c, i) => `<span class="${i < li ? "ok" : i === li ? "cur" : ""}">${esc(c)}</span>`).join("")}</div>
+        <div class="tr-wrap"><canvas id="cv"></canvas></div>
+        <div class="tr-bar"><b id="prog"></b></div>
+        <div class="actions">
+          <button class="round-btn" id="clear" aria-label="Стереть">🧽</button>
+          <button class="round-btn slow" id="hear" aria-label="Послушать">🔊</button>
+        </div>
+        <div class="feedback" id="fb"></div>
+        <button class="skip" id="skip">пропустить</button>
+      </div>`);
+    if (li === 0) {
+      await hintOnce("trace", "Обведи букву пальцем по пунктиру");
+      Voice.en(word.en);
+    }
+    const ok = await traceLetter(root, ch);
+    if (ok) track("trace");
+    else L.mistakes++;
+  }
+  // слово целиком
+  const root = lessonShell(`
+    <div class="card trace">
+      <div class="tag">✍️ Ты написал слово!</div>
+      <div class="tr-word done">${esc(word.en)}</div>
+      ${picHTML(word, "xl")}
+      <div class="ru">${esc(word.ru)}</div>
+      <div class="feedback" id="fb"></div>
+    </div>`);
+  await celebrate($("#fb", root), "Молодец! ✍️");
+  await Voice.en(word.en);
+  await sleep(700);
+  nextStep();
+};
+
+// Холст с буквой: возвращает Promise<true>, когда буква обведена, или <false> при пропуске
+function traceLetter(root, ch) {
+  return new Promise((resolve) => {
+    const cv = $("#cv", root);
+    const box = cv.parentElement.getBoundingClientRect();
+    const size = Math.min(300, Math.floor(box.width));
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = size * dpr;
+    cv.height = size * dpr;
+    cv.style.width = size + "px";
+    cv.style.height = size + "px";
+    const ctx = cv.getContext("2d");
+    ctx.scale(dpr, dpr);
+    const scale = size / 300;
+    const drawGuide = () => {
+      ctx.clearRect(0, 0, size, size);
+      ctx.save();
+      ctx.scale(scale, scale);
+      ctx.font = TRACE_FONT;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
+      // линейки как в прописи
+      ctx.strokeStyle = "#cfe3ff";
+      ctx.lineWidth = 2;
+      [70, 150, 232].forEach((y) => {
+        ctx.beginPath();
+        ctx.moveTo(10, y);
+        ctx.lineTo(290, y);
+        ctx.stroke();
+      });
+      ctx.fillStyle = "#e7f4ec";
+      ctx.fillText(ch, 150, 232);
+      ctx.setLineDash([10, 9]);
+      ctx.strokeStyle = "#7cb995";
+      ctx.lineWidth = 3;
+      ctx.strokeText(ch, 150, 232);
+      ctx.restore();
+    };
+    drawGuide();
+    // маска буквы (для проверки): «ядро» и расширенная зона допуска
+    const N = 100;
+    const mk = (extra) => {
+      const c = document.createElement("canvas");
+      c.width = c.height = N;
+      const x = c.getContext("2d");
+      x.scale(N / 300, N / 300);
+      x.font = TRACE_FONT;
+      x.textAlign = "center";
+      x.fillStyle = x.strokeStyle = "#000";
+      x.fillText(ch, 150, 232);
+      if (extra) {
+        x.lineWidth = extra;
+        x.lineJoin = "round";
+        x.strokeText(ch, 150, 232);
+      }
+      const d = x.getImageData(0, 0, N, N).data;
+      const m = new Uint8Array(N * N);
+      for (let i = 0; i < N * N; i++) m[i] = d[i * 4 + 3] > 100 ? 1 : 0;
+      return m;
+    };
+    const core = mk(0);
+    const zone = mk(34);
+    const coreCount = core.reduce((a, b) => a + b, 0) || 1;
+    const ink = new Uint8Array(N * N);
+    let inkCount = 0;
+    let inZone = 0;
+    let covered = 0;
+    const stamp = (x, y) => {
+      // отмечаем на сетке 100×100 круг радиусом ~кисти
+      const gx = (x / size) * N;
+      const gy = (y / size) * N;
+      const r = 5;
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++) {
+          if (dx * dx + dy * dy > r * r) continue;
+          const px = Math.round(gx + dx);
+          const py = Math.round(gy + dy);
+          if (px < 0 || py < 0 || px >= N || py >= N) continue;
+          const i = py * N + px;
+          if (ink[i]) continue;
+          ink[i] = 1;
+          inkCount++;
+          if (zone[i]) inZone++;
+          if (core[i]) covered++;
+        }
+    };
+    const prog = $("#prog", root);
+    const fb = $("#fb", root);
+    let last = null;
+    let finished = false;
+    const pos = (e) => {
+      const r = cv.getBoundingClientRect();
+      return [e.clientX - r.left, e.clientY - r.top];
+    };
+    const line = (a, b) => {
+      ctx.strokeStyle = "#1f9d55";
+      ctx.lineWidth = 22 * scale;
+      ctx.lineCap = ctx.lineJoin = "round";
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
+      ctx.stroke();
+      const steps = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 3) || 1;
+      for (let i = 0; i <= steps; i++) stamp(lerp(a[0], b[0], i / steps), lerp(a[1], b[1], i / steps));
+    };
+    const check = () => {
+      const cov = covered / coreCount;
+      const prec = inkCount ? inZone / inkCount : 1;
+      prog.style.width = Math.min(100, Math.round((cov / 0.6) * 100)) + "%";
+      if (prec < 0.6 && inkCount > 150) fb.innerHTML = `<span class="bad">Веди пальцем по букве 🙂 Нажми 🧽 и попробуй ещё</span>`;
+      else fb.innerHTML = "";
+      if (!finished && cov >= 0.6 && prec >= 0.65) {
+        finished = true;
+        Sfx.correct();
+        fb.innerHTML = `<span class="ok">Отлично! ✨</span>`;
+        $(".tr-word .cur", root)?.classList.add("ok");
+        Voice.say(ch, { rate: 0.8 });
+        setTimeout(() => resolve(true), 900);
+      }
+    };
+    cv.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      try {
+        cv.setPointerCapture(e.pointerId);
+      } catch (err) {}
+      last = pos(e);
+      line(last, last);
+    });
+    cv.addEventListener("pointermove", (e) => {
+      if (!last) return;
+      e.preventDefault();
+      const p = pos(e);
+      line(last, p);
+      last = p;
+    });
+    const up = () => {
+      if (!last) return;
+      last = null;
+      check();
+    };
+    cv.addEventListener("pointerup", up);
+    cv.addEventListener("pointercancel", up);
+    $("#clear", root).onclick = () => {
+      ink.fill(0);
+      inkCount = inZone = covered = 0;
+      prog.style.width = "0%";
+      fb.innerHTML = "";
+      drawGuide();
+    };
+    $("#hear", root).onclick = () => Voice.say(ch, { rate: 0.8 });
+    $("#skip", root).onclick = () => !finished && ((finished = true), resolve(false));
+  });
+}
+
+// конец истории, открытой из списка «Истории»
+async function finishStory() {
+  const stars = L.mistakes === 0 ? 3 : L.mistakes <= 2 ? 2 : 1;
+  const sr = markTrained(Math.min(30, (Date.now() - L.startedAt) / 60000), L.mistakes);
+  const root = render(`
+    <div class="screen finish">
+      <h2 class="fin-title">История прочитана! 📖</h2>
+      <div class="fin-stars">${[1, 2, 3].map((i) => `<span class="${i <= stars ? "on" : ""}" style="animation-delay:${i * 0.25}s">⭐</span>`).join("")}</div>
+      ${streakBannerHTML(sr)}
+      <div class="row2">
+        <button class="mid-btn" id="home">🏠<span>Домой</span></button>
+        <button class="mid-btn accent" id="more">📖<span>Ещё история</span></button>
+      </div>
+    </div>`);
+  $("#home", root).onclick = showHome;
+  $("#more", root).onclick = showStories;
+  Sfx.fanfare();
+  confetti(60);
+  await Voice.ru("Молодец! Ты прочитал историю!");
+}

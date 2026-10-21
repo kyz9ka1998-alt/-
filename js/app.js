@@ -32,7 +32,7 @@ const App = {
     return Math.min(this.progress.cups.length, CAREER.length - 1);
   },
   get totalStars() {
-    return Object.values(this.progress.done).reduce((a, b) => a + b, 0);
+    return Object.values(this.progress.done).reduce((a, b) => a + b, 0) + (this.progress.bonus || 0);
   },
   lessonUnlocked(i) {
     if (this.settings.unlockAll || i === 0) return true;
@@ -132,7 +132,10 @@ function showHome() {
             <div class="pcareer">${esc(CAREER[lvl])}</div>
           </div>
         </div>
-        <button class="icon-btn" id="btn-settings" aria-label="Настройки для родителей">⚙️</button>
+        <div class="top-right">
+          <div class="streak-chip ${trainedToday() ? "lit" : ""}" title="Серия дней">🔥 ${streakNow()}</div>
+          <button class="icon-btn" id="btn-settings" aria-label="Настройки для родителей">⚙️</button>
+        </div>
       </header>
 
       <div class="stage-wrap pitch">
@@ -161,12 +164,16 @@ function showHome() {
           ? `<button class="review-btn ${due ? "has-due" : ""}" id="btn-review">🔁 <b>Повторение</b> <span>${due ? `${due} ${plural(due, "слово", "слова", "слов")}` : "всё повторено ✓"}</span></button>`
           : "";
       })()}
-      <div class="row2">
+      ${questsCardHTML()}
+      <div class="row3">
         <button class="mid-btn" id="btn-map">🗺️<span>Карьера</span></button>
+        <button class="mid-btn" id="btn-stories">📖<span>Истории</span></button>
         <button class="mid-btn" id="btn-awards">🏅<span>Награды</span></button>
       </div>
     </div>
   `);
+  if ($("#chest", root)) $("#chest", root).onclick = openChest;
+  $("#btn-stories", root).onclick = showStories;
   App.stage = new PlayerStage($("#stage", root));
   App.stage.onCount = () => Sfx.tick();
   App.stage.play(App.latestSkill());
@@ -214,6 +221,44 @@ function showMap() {
     </div>`);
   $("#back", root).onclick = showHome;
   root.querySelectorAll(".lesson-tile:not(.locked)").forEach((b) => (b.onclick = () => startLesson(+b.dataset.i)));
+}
+
+// =================== ИСТОРИИ ===================
+function showStories() {
+  const open = availableStories();
+  const read = App.progress.storiesRead || [];
+  const root = render(`
+    <div class="screen stories">
+      <header class="topbar"><button class="icon-btn" id="back">←</button><h2>Истории</h2><span></span></header>
+      <p class="hint-white">Голос читает историю и подсвечивает слова. Нажми на слово — услышишь его отдельно.</p>
+      <div class="story-list">
+        ${STORIES.map((st) => {
+          const ok = open.includes(st);
+          const u = UNITS.find((x) => x.id === st.unit);
+          return `<button class="story-card ${ok ? "" : "locked"}" data-id="${st.id}" ${ok ? "" : "disabled"}>
+            <span class="sc-ico">${ok ? st.icon : "🔒"}</span>
+            <span class="sc-title">${esc(st.title)}</span>
+            <small>${u && u.book ? "Урок " + u.book : esc(u ? u.ru : "")}${read.includes(st.id) ? " · ✅" : ""}</small>
+          </button>`;
+        }).join("")}
+      </div>
+    </div>`);
+  $("#back", root).onclick = showHome;
+  root.querySelectorAll(".story-card:not(.locked)").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const story = STORIES.find((x) => x.id === b.dataset.id);
+        startStory(story);
+      })
+  );
+}
+
+function startStory(story) {
+  Sfx.unlock();
+  const ui = UNITS.findIndex((u) => u.id === story.unit);
+  const lesson = { id: "story", kind: "story", title: story.title, unit: Math.max(0, ui), words: [] };
+  L = { index: -1, lesson, unit: UNITS[Math.max(0, ui)], steps: [{ type: "story", story }], pos: 0, mistakes: 0, saidTypes: new Set(), startedAt: Date.now() };
+  runStep();
 }
 
 // =================== НАГРАДЫ ===================
@@ -270,6 +315,9 @@ async function finishLesson() {
   }
   App.save();
   const promoted = App.careerLevel > levelBefore;
+  const sr = markTrained(Math.min(30, (Date.now() - (L.startedAt || Date.now())) / 60000), L.mistakes);
+  track("lesson");
+  if (stars === 3) track("perfect");
 
   const showSkill = newSkill || (!newCup ? App.latestSkill() : null);
   const root = render(`
@@ -284,6 +332,7 @@ async function finishLesson() {
              <div class="fin-sub">${newSkill ? "Новый навык: " : ""}<b>${esc(showSkill.name)}</b></div>`
           : ""
       }
+      ${streakBannerHTML(sr)}
       ${!firstTime ? `<div class="fin-note">Повторение — мать учения! 💪</div>` : ""}
       <div class="row2">
         <button class="mid-btn" id="home">🏠<span>Домой</span></button>
@@ -322,6 +371,13 @@ function showSettings() {
   const root = render(`
     <div class="screen settings">
       <header class="topbar"><button class="icon-btn" id="back">←</button><h2>Для родителей</h2><span></span></header>
+      ${reportHTML()}
+      <div class="info reminders">
+        <p><b>🔔 Напоминания</b></p>
+        <p class="muted">Каждый день в 18:00 придёт уведомление: «Роман, тренер ждёт!». Если тренировка уже была — похвала и счётчик серии. На иконке приложения горит «1», пока сегодня не было тренировки.</p>
+        <button class="mid-btn" id="push-on">🔔<span>Включить напоминания</span></button>
+        <div id="push-out"></div>
+      </div>
       <label class="set"><input type="checkbox" id="ruVoice" ${s.ruVoice ? "checked" : ""}> Подсказки голосом на русском</label>
       <label class="set"><input type="checkbox" id="sound" ${s.sound ? "checked" : ""}> Звуки (свисток, трибуны)</label>
       <label class="set"><input type="checkbox" id="unlockAll" ${s.unlockAll ? "checked" : ""}> Открыть все уроки</label>
@@ -342,6 +398,32 @@ function showSettings() {
       </div>
       <button class="mid-btn danger" id="reset">🗑<span>Сбросить прогресс</span></button>
     </div>`);
+  root.querySelectorAll(".r-word").forEach((b) => (b.onclick = () => Voice.say(b.dataset.en, { rate: 0.7 })));
+  const pushOut = $("#push-out", root);
+  const showSub = (json) => {
+    pushOut.innerHTML = `
+      <p>✅ Уведомления на этом устройстве разрешены.</p>
+      <p class="muted">Последний шаг (один раз): скопируйте код ниже и добавьте его в GitHub как секрет <b>PUSH_SUBSCRIPTION</b> — инструкция в чате с Claude.</p>
+      <textarea class="code" readonly id="sub">${esc(json)}</textarea>
+      <button class="mid-btn" id="sub-copy">📋<span>Скопировать код уведомлений</span></button>`;
+    $("#sub-copy", root).onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(json);
+      } catch (e) {
+        $("#sub", root).select();
+        document.execCommand("copy");
+      }
+      alert("Код скопирован.");
+    };
+  };
+  currentSubscription().then((j) => j && showSub(j));
+  $("#push-on", root).onclick = async () => {
+    try {
+      showSub(await enableReminders());
+    } catch (e) {
+      pushOut.innerHTML = `<p class="bad-text">⚠️ ${esc(e.message || e)}</p>`;
+    }
+  };
   ["ruVoice", "sound", "unlockAll"].forEach((k) => {
     $("#" + k, root).onchange = (e) => {
       App.settings[k] = e.target.checked;
@@ -370,6 +452,7 @@ function showSettings() {
   $("#reset", root).onclick = () => {
     if (confirm("Точно сбросить весь прогресс Романа?")) {
       App.progress = { done: {}, skills: [], cups: [], words: {} };
+      ensureEngage();
       App.save();
       showHome();
     }
@@ -379,7 +462,7 @@ function showSettings() {
 // Код прогресса: прогресс в виде короткой строки, чтобы перенести его на другое устройство.
 function exportCode() {
   const p = App.progress;
-  const data = { v: 1, d: p.done, s: p.skills, c: p.cups, w: p.words };
+  const data = { v: 1, d: p.done, s: p.skills, c: p.cups, w: p.words, k: p.streak, y: p.days, b: p.bonus };
   return "FE1-" + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
 }
 function importCode(code) {
@@ -387,7 +470,8 @@ function importCode(code) {
     const raw = code.trim().replace(/^FE1-/, "");
     const d = JSON.parse(decodeURIComponent(escape(atob(raw))));
     if (!d || typeof d.d !== "object" || !Array.isArray(d.s) || !Array.isArray(d.c)) return false;
-    App.progress = { done: d.d, skills: d.s, cups: d.c, words: d.w || {} };
+    App.progress = { done: d.d, skills: d.s, cups: d.c, words: d.w || {}, streak: d.k, days: d.y || {}, bonus: d.b || 0 };
+    ensureEngage();
     App.save();
     return true;
   } catch (e) {
@@ -398,7 +482,10 @@ function importCode(code) {
 // =================== СТАРТ ===================
 function boot() {
   App.load();
+  ensureEngage();
   Voice.init();
+  syncOutside();
+  document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && syncOutside());
   // просим браузер не удалять сохранённые данные
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   document.addEventListener("touchstart", () => Sfx.unlock(), { once: true, passive: true });

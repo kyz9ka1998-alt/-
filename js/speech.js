@@ -20,7 +20,8 @@ const Voice = {
     return vs[0];
   },
   // Произнести текст. Возвращает Promise, который завершается после окончания фразы.
-  say(text, { lang = "en-US", rate = 0.8, pitch = 1.05 } = {}) {
+  // onBoundary(charIndex) — вызывается, когда голос начинает новое слово (для подсветки)
+  say(text, { lang = "en-US", rate = 0.8, pitch = 1.05, onBoundary = null } = {}) {
     return new Promise((resolve) => {
       if (!("speechSynthesis" in window)) return resolve();
       try {
@@ -40,6 +41,7 @@ const Voice = {
         };
         u.onend = done;
         u.onerror = done;
+        if (onBoundary) u.onboundary = (e) => (e.name === undefined || e.name === "word") && onBoundary(e.charIndex);
         // на iOS onend иногда не приходит — страховка по времени
         setTimeout(done, 900 + text.length * 120);
         speechSynthesis.speak(u);
