@@ -361,3 +361,23 @@ button:disabled { cursor: default; }
   display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
   background: #e53935; color: #fff; font-size: 15px; margin-right: 6px; vertical-align: middle;
 }
+.review-btn {
+  width: 100%; background: var(--card); border-radius: 18px; padding: 14px 16px; font-size: 20px;
+  display: flex; align-items: center; gap: 10px; box-shadow: 0 5px 0 rgba(0,0,0,.18);
+}
+.review-btn span { margin-left: auto; font-size: 15px; font-weight: 700; opacity: .7; }
+.review-btn.has-due { background: #e9f8ff; outline: 3px solid #4fb3ff; }
+.review-btn.has-due span { color: #0a6db3; opacity: 1; }
+.show-pic { display: grid; place-items: center; animation: pop .4s; }
+.yn-pic { height: 150px; display: grid; place-items: center; }
+.yn-pic.size-little .pic { transform: scale(.45); }
+.yn-pic.size-big .pic { transform: scale(1.15); }
+.yn-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+.yn { border: 3px solid #d9eee1; border-radius: 18px; padding: 14px 8px; font-size: 19px; font-weight: 900; background: #fff; box-shadow: 0 4px 0 rgba(0,0,0,.12); }
+.yn.yes { color: var(--green-d); }
+.yn.no { color: #c03; }
+.miss-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; max-width: 300px; }
+.miss-cell { aspect-ratio: 1.2; background: #eaf7ef; border-radius: 18px; display: grid; place-items: center; border: 3px solid #d9eee1; }
+.miss-cell .pic { font-size: 60px; }
+.miss-cell.gone { background: #fff6c7; border-color: var(--yellow); animation: pulse 1s infinite; }
+.miss-cell.found { border-color: var(--green); background: #d6ffe6; animation: pop .4s; }

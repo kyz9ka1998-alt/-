@@ -10,7 +10,22 @@ function specialSteps(unit, n) {
   if (unit.rhymes) pick(unit.rhymes, n).forEach((r) => out.push({ type: "rhyme", rhyme: r }));
   if (unit.counts) pick(unit.counts, n).forEach((c) => out.push({ type: "count", count: c }));
   if (unit.pairs) out.push({ type: "pairs", pairs: pick(unit.pairs, 4), food: true });
-  return out.slice(0, Math.max(n, 1));
+  if (unit.missing) out.unshift({ type: "missing", pool: unit.missing });
+  if (unit.yesno || unit.sizes) for (let i = 0; i < n + 1; i++) out.unshift(yesnoStep(unit));
+  return out.slice(0, Math.max(n, 1) + (unit.yesno || unit.sizes ? 1 : 0));
+}
+
+// «Is this a bird?» — да или нет. Для юнита с размерами: «Is this a big hat?»
+function yesnoStep(unit) {
+  if (unit.sizes) {
+    const w = pick(unit.sizes, 1)[0];
+    const shownBig = Math.random() < 0.5;
+    const askBig = Math.random() < 0.5;
+    return { type: "yesno", show: w, asked: w, shownSize: shownBig ? "big" : "little", askedSize: askBig ? "big" : "little" };
+  }
+  const w = pick(unit.yesno, 1)[0];
+  const asked = Math.random() < 0.5 ? w : pick(unit.yesno.filter((x) => x !== w), 1)[0];
+  return { type: "yesno", show: w, asked };
 }
 
 function buildSteps(lesson) {
@@ -18,7 +33,16 @@ function buildSteps(lesson) {
   const words = lesson.words;
   const all = unit.words;
   const steps = [];
-  if (lesson.kind === "train1") {
+  if (lesson.kind === "train") {
+    // короткая тема (до 4 слов) — одна тренировка
+    words.forEach((w) => steps.push({ type: "intro", word: w }));
+    shuffle(words).forEach((w) => steps.push({ type: "penalty", word: w, pool: words }));
+    pick(words, 3).forEach((w) => steps.push({ type: "read", word: w, pool: all }));
+    steps.push({ type: "pairs", pairs: words.map((w) => ({ left: w, right: w })) });
+    steps.push(...specialSteps(unit, 1));
+    pick(words, 2).forEach((w) => steps.push({ type: "say", word: w }));
+    pick(words, 2).forEach((w) => steps.push({ type: "recall", word: w, pool: all }));
+  } else if (lesson.kind === "train1") {
     words.forEach((w) => steps.push({ type: "intro", word: w }));
     shuffle(words).forEach((w) => steps.push({ type: "penalty", word: w, pool: words }));
     shuffle(words).forEach((w) => steps.push({ type: "read", word: w, pool: all }));
@@ -34,7 +58,9 @@ function buildSteps(lesson) {
     (unit.phrases || []).forEach((p) => steps.push({ type: "phrase", phrase: p }));
     pick(unit.dialogs || [], 3).forEach((d) => steps.push({ type: "dialog", dialog: d }));
     pick(unit.builds || [], 2).forEach((b) => steps.push({ type: "build", sentence: b }));
-    steps.push(unit.pairs ? { type: "pairs", pairs: pick(unit.pairs, 4), food: true } : { type: "pairs", pairs: pick(all, 4).map((w) => ({ left: w, right: w })) });
+    if (unit.rhymes || unit.counts || unit.yesno || unit.sizes || unit.missing) steps.push(...specialSteps(unit, 1).filter((x) => x.type !== "pairs"));
+    if (unit.pairs) steps.push({ type: "pairs", pairs: pick(unit.pairs, 4), food: true });
+    else if (all.length >= 2) steps.push({ type: "pairs", pairs: pick(all, 4).map((w) => ({ left: w, right: w })) });
     pick(all, 3).forEach((w) => steps.push({ type: "recall", word: w, pool: all }));
     pick(all, 2).forEach((w) => steps.push({ type: "penalty", word: w, pool: all }));
   }
@@ -70,8 +96,11 @@ function lessonShell(inner) {
 
 function nextStep() {
   Voice.stop();
+  const step = L.steps[L.pos];
+  // статистика по слову для режима «Повторение»
+  if (step.word && step.type !== "intro") recordWord(step.word, L.mistakes === L.stepMistakes);
   L.pos++;
-  if (L.pos >= L.steps.length) finishLesson();
+  if (L.pos >= L.steps.length) L.lesson.kind === "review" ? finishReview() : finishLesson();
   else runStep();
 }
 
@@ -84,6 +113,7 @@ function hintOnce(type, text) {
 const STEP_FN = {};
 function runStep() {
   const step = L.steps[L.pos];
+  L.stepMistakes = L.mistakes;
   STEP_FN[step.type](step);
 }
 
@@ -253,7 +283,7 @@ STEP_FN.penalty = async ({ word, pool }) => {
       <button class="hear-btn" id="hear">🔊 <span>Послушай</span></button>
       <div class="goal-frame">
         <div class="targets">
-          ${opts.map((w, i) => `<button class="target" data-i="${i}">${picHTML(w)}</button>`).join("")}
+          ${opts.map((w, i) => `<button class="target" data-i="${i}" data-en="${esc(w.en)}">${picHTML(w)}</button>`).join("")}
         </div>
         <div class="keeper" id="keeper">🧤</div>
       </div>
@@ -419,10 +449,11 @@ STEP_FN.recall = async ({ word, pool }) => {
 STEP_FN.pairs = async ({ pairs, food }) => {
   const left = shuffle(pairs.map((p, i) => ({ p, i })));
   const right = shuffle(pairs.map((p, i) => ({ p, i })));
-  const rightHTML = (p) => (food ? picHTML(p.right) : `<span class="pair-word">${esc(p.right.en)}</span>`);
+  const rightHTML = (p) => (food && !p.rightText ? picHTML(p.right) : `<span class="pair-word">${esc(p.right.en)}</span>`);
+  const can = pairs.some((p) => p.rightText);
   const root = lessonShell(`
     <div class="card">
-      <div class="tag">🔗 ${food ? "Кто что любит? Соедини пары" : "Найди пару: картинка и слово"}</div>
+      <div class="tag">🔗 ${can ? "Кто что умеет? Соедини пары" : food ? "Кто что любит? Соедини пары" : "Найди пару: картинка и слово"}</div>
       <div class="pairs">
         <div class="col">${left.map(({ p, i }) => `<button class="pair-btn" data-side="l" data-i="${i}">${picHTML(p.left)}</button>`).join("")}</div>
         <div class="col">${right.map(({ p, i }) => `<button class="pair-btn" data-side="r" data-i="${i}">${rightHTML(p)}</button>`).join("")}</div>
@@ -482,7 +513,7 @@ STEP_FN.pairs = async ({ pairs, food }) => {
 STEP_FN.rhyme = async ({ rhyme }) => {
   const { a, b, wrong } = rhyme;
   const opts = shuffle([b, ...wrong]);
-  const line = `I can see a ${a.en} and a`;
+  const line = (L.unit.rhymeLine || "I can see a {a} and a").replace("{a}", a.en);
   const root = lessonShell(`
     <div class="card">
       <div class="tag">🎵 Придумай рифму!</div>
@@ -504,7 +535,7 @@ STEP_FN.rhyme = async ({ rhyme }) => {
   });
   $(".qmark", root).outerHTML = picHTML(b);
   await celebrate($("#fb", root), `${esc(a.en)} — ${esc(b.en)}! 🎵`);
-  await Voice.say(`I can see a ${a.en} and a ${b.en}!`, { rate: 0.8 });
+  await Voice.say(`${line} ${b.en}!`, { rate: 0.8 });
   await sleep(400);
   nextStep();
 };
@@ -547,6 +578,7 @@ STEP_FN.dialog = async ({ dialog: d }) => {
         <span class="who">${d.who}</span>
         <button class="bubble" id="hear">${esc(d.line)}</button>
       </div>
+      ${d.show ? `<div class="show-pic">${picHTML(d.show, "xl")}</div>` : ""}
       <div class="ru">${esc(d.ru)}</div>
       ${d.give ? `<div class="sub">Что ты дашь?</div><div class="targets ${d.options.length === 4 ? "four" : "three"}">${d.options.map((id) => `<button class="target" data-ok="${id === d.give ? 1 : 0}">${itemHTML(id)}</button>`).join("")}</div>` : ""}
       <div class="feedback" id="fb"></div>
@@ -555,7 +587,7 @@ STEP_FN.dialog = async ({ dialog: d }) => {
         <div id="speak" class="speak-area"></div>
       </div>
     </div>`);
-  const pitch = { mouse: 1.6, cat: 1.3, bird: 1.7, chick: 1.8, fox: 0.9, bear: 0.6, cow: 0.7, cock: 1.2, hare: 1.4, coach: 0.9 }[d.whoEn] || 1;
+  const pitch = d.ask ? 1 : { boy: 1.3, girl: 1.5, mouse: 1.6, cat: 1.3, bird: 1.7, chick: 1.8, fox: 0.9, bear: 0.6, cow: 0.7, cock: 1.2, hare: 1.4, coach: 0.9 }[d.whoEn] || 1;
   const say = () => Voice.say(d.line, { rate: 0.8, pitch });
   $("#hear", root).onclick = say;
   await hintOnce("dialog", "Послушай, что говорит зверёк, и ответь ему");
@@ -637,6 +669,164 @@ STEP_FN.build = async ({ sentence }) => {
   });
   await celebrate($("#fb", root), "Отлично собрано! 🧩");
   await say();
+  await sleep(400);
+  nextStep();
+};
+
+// =================== ПОВТОРЕНИЕ ===================
+// Интервальное повторение по «коробкам Лейтнера»: верный ответ — слово переходит в следующую коробку
+// и вернётся позже; ошибка — слово возвращается в первую коробку и придёт уже завтра.
+const BOX_DAYS = [0, 1, 2, 4, 7, 14, 30];
+const today = () => Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 864e5);
+
+function recordWord(word, ok) {
+  const st = (App.progress.words[word.en] ||= { box: 0, due: 0 });
+  if (ok) st.box = Math.min(st.box + 1, BOX_DAYS.length - 1);
+  else st.box = 0;
+  st.due = today() + BOX_DAYS[st.box];
+  App.save();
+}
+
+// Слова из пройденных уроков
+function learnedWords() {
+  const map = new Map();
+  LESSONS.forEach((l) => {
+    if (l.id in App.progress.done) l.words.forEach((w) => map.set(w.en, w));
+  });
+  return [...map.values()];
+}
+
+function dueWords() {
+  const t = today();
+  return learnedWords().filter((w) => {
+    const st = App.progress.words[w.en];
+    return !st || st.due <= t;
+  });
+}
+
+function startReview() {
+  Sfx.unlock();
+  const learned = learnedWords();
+  if (!learned.length) return;
+  // сначала слова, которые пора повторить (самые слабые первыми), затем — давно не виденные
+  const st = (w) => App.progress.words[w.en] || { box: 0, due: 0 };
+  const due = shuffle(dueWords()).sort((a, b) => st(a).box - st(b).box);
+  const rest = learned.filter((w) => !due.includes(w)).sort((a, b) => st(a).due - st(b).due);
+  const words = [...due, ...rest].slice(0, 6);
+  const pool = learned.length >= 3 ? learned : [...learned, ...UNITS[0].words];
+  const kinds = ["penalty", "read", "recall"];
+  const steps = [];
+  words.forEach((w, i) => steps.push({ type: kinds[i % 3], word: w, pool }));
+  words.slice(0, 2).forEach((w) => steps.push({ type: "say", word: w }));
+  if (words.length >= 3) steps.splice(3, 0, { type: "pairs", pairs: pick(words, 4).map((w) => ({ left: w, right: w })) });
+  const lesson = { id: "review", kind: "review", title: "Повторение", unit: 0, words };
+  L = { index: -1, lesson, unit: UNITS[0], steps: shuffle(steps), pos: 0, mistakes: 0, saidTypes: new Set() };
+  Sfx.whistle();
+  runStep();
+}
+
+async function finishReview() {
+  const stars = L.mistakes === 0 ? 3 : L.mistakes <= 2 ? 2 : 1;
+  App.progress.reviews = (App.progress.reviews || 0) + 1;
+  App.save();
+  const left = dueWords().length;
+  const root = render(`
+    <div class="screen finish">
+      <h2 class="fin-title">Повторение окончено!</h2>
+      <div class="fin-stars">${[1, 2, 3].map((i) => `<span class="${i <= stars ? "on" : ""}" style="animation-delay:${i * 0.25}s">⭐</span>`).join("")}</div>
+      <div class="stage-wrap pitch small"><div id="stage" class="stage"></div></div>
+      <div class="fin-sub">${L.lesson.words.map((w) => esc(w.en)).join(" · ")}</div>
+      <div class="fin-note">${left ? `Ещё слов на повторение: ${left}` : "На сегодня всё повторено! 💪"}</div>
+      <div class="row2">
+        <button class="mid-btn" id="home">🏠<span>Домой</span></button>
+        <button class="mid-btn accent" id="more">🔁<span>${left ? "Ещё раз" : "Ещё урок"}</span></button>
+      </div>
+    </div>`);
+  App.stage = new PlayerStage($("#stage", root));
+  App.stage.onCount = () => Sfx.tick();
+  App.stage.play(App.latestSkill());
+  $("#home", root).onclick = showHome;
+  $("#more", root).onclick = () => (left ? startReview() : startLesson(App.nextLessonIndex()));
+  Sfx.fanfare();
+  confetti(60);
+  await Voice.ru(stars === 3 ? "Супер! Ты всё помнишь!" : "Молодец! Повторение — мать учения!");
+}
+
+// ---------- 12. Да или нет: Is this a bird? ----------
+STEP_FN.yesno = async (step) => {
+  const { show, asked, shownSize, askedSize } = step;
+  const sized = !!shownSize;
+  const q = sized ? `Is this a ${askedSize} ${asked.en}?` : `Is this a ${asked.en}?`;
+  const yes = sized ? shownSize === askedSize : show === asked;
+  const answer = yes
+    ? { en: "Yes, it is.", ru: "Да.", alt: ["yes it is", "yes", "yes its"] }
+    : {
+        en: sized ? `No, it isn't. It's a ${shownSize} ${show.en}.` : `No, it isn't. It's a ${show.en}.`,
+        ru: sized ? `Нет. Это ${shownSize === "big" ? "большой" : "маленький"} предмет: ${show.ru}.` : `Нет. Это ${show.ru}.`,
+        alt: ["no it isnt", "no it is not", "no"],
+      };
+  const root = lessonShell(`
+    <div class="card">
+      <div class="tag">❓ Да или нет?</div>
+      <div class="yn-pic ${sized ? "size-" + shownSize : ""}">${picHTML(show, "xl")}</div>
+      <button class="bubble" id="hear">🔊 ${esc(q)}</button>
+      <div class="yn-btns">
+        <button class="yn yes" data-ok="${yes ? 1 : 0}">✅ Yes, it is.</button>
+        <button class="yn no" data-ok="${yes ? 0 : 1}">❌ No, it isn't.</button>
+      </div>
+      <div class="feedback" id="fb"></div>
+      <div id="reply" class="reply" style="display:none">
+        <div class="sub">Скажи: <b>${esc(answer.en)}</b></div>
+        <div id="speak" class="speak-area"></div>
+      </div>
+    </div>`);
+  const say = () => Voice.say(q, { rate: 0.8 });
+  $("#hear", root).onclick = say;
+  await hintOnce("yesno", "Посмотри на картинку и ответь: да или нет?");
+  say();
+  await choice(root, {
+    onWrong: () => ($("#fb", root).innerHTML = `<span class="bad">Посмотри внимательно! Это ${esc(sized ? (shownSize === "big" ? "большой" : "маленький") + " — " : "")}${esc(show.en)}.</span>`),
+  });
+  Sfx.correct();
+  $("#fb", root).innerHTML = `<span class="ok">Правильно!</span>`;
+  $("#reply", root).style.display = "";
+  Voice.say(answer.en, { rate: 0.75 });
+  await speakTask($("#speak", root), answer, { isPhrase: true, prompt: "Нажми и скажи" });
+  nextStep();
+};
+
+// ---------- 13. Кто исчез? (What's missing?) ----------
+STEP_FN.missing = async ({ pool }) => {
+  const shown = pick(pool, 4);
+  const gone = shown[Math.floor(Math.random() * shown.length)];
+  const others = pick(pool.filter((w) => !shown.includes(w)), 2);
+  const opts = shuffle([gone, ...(others.length >= 2 ? others : pick(shown.filter((w) => w !== gone), 2))]);
+  const root = lessonShell(`
+    <div class="card">
+      <div class="tag" id="tag">👀 Запомни, кто на картинке!</div>
+      <div class="miss-grid" id="grid">${shown.map((w) => `<div class="miss-cell" data-en="${esc(w.en)}">${picHTML(w)}</div>`).join("")}</div>
+      <button class="bubble small" id="hear" style="visibility:hidden">🔊 What's missing?</button>
+      <div class="targets three" id="opts" style="visibility:hidden">${opts.map((w) => `<button class="target" data-ok="${w === gone ? 1 : 0}" data-en="${esc(w.en)}">${picHTML(w)}</button>`).join("")}</div>
+      <div class="feedback" id="fb"></div>
+    </div>`);
+  await hintOnce("missing", "Запомни всех, кто на картинке. Сейчас кто-то исчезнет!");
+  shown.forEach((w, i) => setTimeout(() => Voice.en(w.en), i * 900));
+  await sleep(4200);
+  const cell = root.querySelector(`.miss-cell[data-en="${CSS.escape(gone.en)}"]`);
+  cell.classList.add("gone");
+  cell.innerHTML = '<span class="pic">❓</span>';
+  $("#tag", root).textContent = "❓ Кто исчез?";
+  $("#hear", root).style.visibility = "";
+  $("#opts", root).style.visibility = "";
+  const say = () => Voice.say("What's missing?", { rate: 0.8 });
+  $("#hear", root).onclick = say;
+  say();
+  await choice(root, { onWrong: (btn) => ($("#fb", root).innerHTML = `<span class="bad">${esc(btn.dataset.en)} — нет, он на месте. Ещё раз!</span>`) });
+  cell.innerHTML = picHTML(gone);
+  cell.classList.remove("gone");
+  cell.classList.add("found");
+  await celebrate($("#fb", root), `${esc(gone.en)}! — ${esc(gone.ru)}`);
+  await Voice.say(`A ${gone.en}!`, { rate: 0.8 });
   await sleep(400);
   nextStep();
 };

@@ -3,7 +3,7 @@
 const STORE_KEY = "football-english-v1";
 
 const App = {
-  progress: { done: {}, skills: [], cups: [] },
+  progress: { done: {}, skills: [], cups: [], words: {} },
   settings: { ruVoice: true, sound: true, unlockAll: false },
   stage: null,
 
@@ -18,6 +18,7 @@ const App = {
         const ids = new Set(LESSONS.map((l) => l.id));
         Object.keys(this.progress.done).forEach((k) => ids.has(k) || delete this.progress.done[k]);
         this.progress.cups = this.progress.cups.filter((c) => UNITS.some((u) => u.id === c));
+        this.progress.words ||= {};
       }
     } catch (e) {}
   },
@@ -63,6 +64,10 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 function itemSVG(kind, color) {
   if (kind === "hat")
     return `<svg viewBox="0 0 100 70"><ellipse cx="50" cy="55" rx="46" ry="11" fill="${color}" stroke="#222" stroke-width="3"/><path d="M26 54 Q26 12 50 12 Q74 12 74 54 Z" fill="${color}" stroke="#222" stroke-width="3"/><path d="M27 44 Q50 50 73 44 L73 50 Q50 56 27 50 Z" fill="#222" opacity=".55"/></svg>`;
+  if (kind === "table")
+    return `<svg viewBox="0 0 100 70"><line x1="28" y1="30" x2="22" y2="66" stroke="#6d4c41" stroke-width="5"/><line x1="72" y1="30" x2="78" y2="66" stroke="#6d4c41" stroke-width="5"/><line x1="50" y1="32" x2="50" y2="62" stroke="#6d4c41" stroke-width="5"/><ellipse cx="50" cy="26" rx="44" ry="12" fill="${color}" stroke="#222" stroke-width="3"/></svg>`;
+  if (kind === "mat")
+    return `<svg viewBox="0 0 100 70"><rect x="14" y="12" width="72" height="46" rx="3" fill="${color}" stroke="#222" stroke-width="3"/><rect x="24" y="20" width="52" height="30" fill="none" stroke="#ffd54f" stroke-width="3"/><path d="M50 24 L60 35 L50 46 L40 35 Z" fill="#1e66f5"/>${[0, 1, 2, 3, 4, 5].map((i) => `<line x1="${20 + i * 12}" y1="58" x2="${20 + i * 12}" y2="66" stroke="#e0a030" stroke-width="3"/><line x1="${20 + i * 12}" y1="4" x2="${20 + i * 12}" y2="12" stroke="#e0a030" stroke-width="3"/>`).join("")}</svg>`;
   return `<svg viewBox="0 0 100 70"><path d="M18 50 Q18 14 52 14 Q84 14 84 50 Z" fill="${color}" stroke="#222" stroke-width="3"/><path d="M80 48 Q98 48 98 56 Q80 60 60 54 Z" fill="${color}" stroke="#222" stroke-width="3"/><line x1="52" y1="14" x2="52" y2="50" stroke="#222" stroke-width="2" opacity=".5"/><circle cx="52" cy="13" r="4" fill="#222"/></svg>`;
 }
 
@@ -104,6 +109,13 @@ function confetti(n = 60) {
   setTimeout(() => box.remove(), 3500);
 }
 
+function plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}
+
 // =================== ГЛАВНЫЙ ЭКРАН ===================
 function showHome() {
   const lvl = App.careerLevel;
@@ -142,6 +154,13 @@ function showHome() {
         </span>
       </button>
 
+      ${(() => {
+        const learned = learnedWords().length;
+        const due = dueWords().length;
+        return learned
+          ? `<button class="review-btn ${due ? "has-due" : ""}" id="btn-review">🔁 <b>Повторение</b> <span>${due ? `${due} ${plural(due, "слово", "слова", "слов")}` : "всё повторено ✓"}</span></button>`
+          : "";
+      })()}
       <div class="row2">
         <button class="mid-btn" id="btn-map">🗺️<span>Карьера</span></button>
         <button class="mid-btn" id="btn-awards">🏅<span>Награды</span></button>
@@ -157,6 +176,7 @@ function showHome() {
   };
   $("#btn-play", root).onclick = () => startLesson(App.nextLessonIndex());
   $("#btn-map", root).onclick = showMap;
+  if ($("#btn-review", root)) $("#btn-review", root).onclick = startReview;
   $("#btn-awards", root).onclick = showAwards;
   $("#btn-settings", root).onclick = parentGate;
 }
@@ -349,7 +369,7 @@ function showSettings() {
   };
   $("#reset", root).onclick = () => {
     if (confirm("Точно сбросить весь прогресс Романа?")) {
-      App.progress = { done: {}, skills: [], cups: [] };
+      App.progress = { done: {}, skills: [], cups: [], words: {} };
       App.save();
       showHome();
     }
@@ -359,7 +379,7 @@ function showSettings() {
 // Код прогресса: прогресс в виде короткой строки, чтобы перенести его на другое устройство.
 function exportCode() {
   const p = App.progress;
-  const data = { v: 1, d: p.done, s: p.skills, c: p.cups };
+  const data = { v: 1, d: p.done, s: p.skills, c: p.cups, w: p.words };
   return "FE1-" + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
 }
 function importCode(code) {
@@ -367,7 +387,7 @@ function importCode(code) {
     const raw = code.trim().replace(/^FE1-/, "");
     const d = JSON.parse(decodeURIComponent(escape(atob(raw))));
     if (!d || typeof d.d !== "object" || !Array.isArray(d.s) || !Array.isArray(d.c)) return false;
-    App.progress = { done: d.d, skills: d.s, cups: d.c };
+    App.progress = { done: d.d, skills: d.s, cups: d.c, words: d.w || {} };
     App.save();
     return true;
   } catch (e) {
