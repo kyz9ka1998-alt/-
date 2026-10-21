@@ -1,0 +1,38 @@
+# Озвучка приложения голосами Microsoft: Maisie (английский) и Светлана (русский).
+# Запускается, когда меняется список текстов audio/texts.json (node tools/collect-texts.js).
+name: TTS build
+
+on:
+  push:
+    paths:
+      - "audio/texts.json"
+      - "tools/tts_build.py"
+      - ".github/workflows/tts-build.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tts-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Generate audio
+        run: |
+          pip install -q edge-tts==7.3.1
+          python tools/tts_build.py
+      - name: Commit
+        run: |
+          git config user.name "tts-bot"
+          git config user.email "tts-bot@users.noreply.github.com"
+          git add -A audio
+          git commit -m "Озвучка: обновлены записи (Maisie / Светлана)" || exit 0
+          git pull --rebase -q
+          git push

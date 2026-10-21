@@ -1,6 +1,6 @@
 // Офлайн-кэш и напоминания.
 // Кэш: сначала сеть (чтобы обновления приходили сразу), без сети — из кэша.
-const CACHE = "football-english-v10";
+const CACHE = "football-english-v11";
 const FILES = ["./", "index.html", "css/style.css", "js/data.js", "js/speech.js", "js/player.js", "js/lesson.js", "js/engage.js", "js/app.js", "manifest.json", "icons/icon-180.png", "icons/icon-192.png"];
 
 self.addEventListener("install", (e) => {
@@ -13,11 +13,15 @@ self.addEventListener("activate", (e) => {
 });
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+  // аудио запрашивается кусками (Range) — такие ответы не кэшируем, отдаём как есть
+  if (e.request.headers.get("range")) return;
   e.respondWith(
     fetch(e.request)
       .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy));
+        if (res.ok && res.status === 200) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
+        }
         return res;
       })
       .catch(() => caches.match(e.request))

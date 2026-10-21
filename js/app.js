@@ -517,8 +517,13 @@ function boot() {
   document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && syncOutside());
   // просим браузер не удалять сохранённые данные
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-  document.addEventListener("touchstart", () => Sfx.unlock(), { once: true, passive: true });
-  document.addEventListener("click", () => Sfx.unlock(), { once: true });
+  const unlock = () => {
+    Sfx.unlock();
+    AudioBank.unlock();
+  };
+  document.addEventListener("touchstart", unlock, { once: true, passive: true });
+  document.addEventListener("click", unlock, { once: true });
+  AudioBank.load();
   showHome();
   if ("serviceWorker" in navigator && location.protocol === "https:") {
     navigator.serviceWorker.register("sw.js").catch(() => {});

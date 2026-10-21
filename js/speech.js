@@ -48,6 +48,15 @@ const Voice = {
   // Произнести текст. Возвращает Promise, который завершается после окончания фразы.
   // onBoundary(charIndex) — вызывается, когда голос начинает новое слово (для подсветки)
   say(text, { lang = "en-US", rate = 0.8, pitch = 1.05, onBoundary = null } = {}) {
+    // сначала — готовая запись диктора (Maisie / Светлана), если она есть
+    const clip = AudioBank.get(lang.slice(0, 2), text);
+    if (clip && AudioBank.ready()) {
+      return AudioBank.play(clip, text, (rate / (lang.startsWith("ru") ? 1.0 : 0.8)), onBoundary).then((ok) => (ok ? undefined : this.synth(text, { lang, rate, pitch, onBoundary })));
+    }
+    return this.synth(text, { lang, rate, pitch, onBoundary });
+  },
+  // синтез речи iPhone (запасной вариант)
+  synth(text, { lang = "en-US", rate = 0.8, pitch = 1.05, onBoundary = null } = {}) {
     return new Promise((resolve) => {
       if (!("speechSynthesis" in window)) return resolve();
       try {
@@ -84,9 +93,103 @@ const Voice = {
     return this.say(text, { lang: "ru-RU", rate: 1.0, pitch: 1.1 });
   },
   stop() {
+    AudioBank.stop();
     try {
       speechSynthesis.cancel();
     } catch (e) {}
+  },
+};
+
+// ---------- Готовые записи (озвучка нейросетью, audio/clips) ----------
+const AudioBank = {
+  index: null,
+  el: null,
+  timers: [],
+  finish: null,
+  SILENT: "data:audio/mpeg;base64,//NAxAAAAANIAAAAAExBTUU0LjBVVVVVVVVVVVVVVVVMQU1FNC4wVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80LEWwAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FNC4wVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80DEpAAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUU0LjBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsSjAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUU0LjBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxKMAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV",
+  async load() {
+    try {
+      const r = await fetch("audio/index.json", { cache: "no-cache" });
+      if (r.ok) this.index = await r.json();
+    } catch (e) {}
+  },
+  // тот же хэш, что в tools/collect-texts.js (FNV-1a по UTF-8)
+  id(lang, text) {
+    const bytes = new TextEncoder().encode(lang + "|" + text.trim());
+    let h = 0x811c9dc5;
+    for (const b of bytes) {
+      h ^= b;
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return h.toString(16).padStart(8, "0");
+  },
+  get(lang, text) {
+    if (!this.index || !text) return null;
+    const id = this.id(lang, text);
+    const e = this.index[id];
+    return e ? { id, dur: e[0], words: e[1] } : null;
+  },
+  // iPhone разрешает звук только после первого касания — «разогреваем» плеер
+  unlock() {
+    if (this.el) return;
+    const a = new Audio();
+    a.preload = "auto";
+    a.src = this.SILENT;
+    a.play().catch(() => {});
+    this.el = a;
+  },
+  ready() {
+    return !!this.el;
+  },
+  stop() {
+    this.timers.forEach(clearTimeout);
+    this.timers = [];
+    if (this.el) {
+      try {
+        this.el.pause();
+      } catch (e) {}
+    }
+    if (this.finish) this.finish(true);
+  },
+  // Возвращает Promise<boolean>: true — запись проиграна, false — не вышло (тогда говорит голос iPhone)
+  play(clip, text, speed, onBoundary) {
+    this.stop();
+    return new Promise((resolve) => {
+      const a = this.el;
+      let settled = false;
+      const done = (ok) => {
+        if (settled) return;
+        settled = true;
+        this.finish = null;
+        a.onended = a.onerror = null;
+        resolve(ok);
+      };
+      this.finish = done;
+      const rate = Math.max(0.5, Math.min(1.3, speed || 1));
+      a.onended = () => done(true);
+      a.onerror = () => done(false);
+      a.src = "audio/clips/" + clip.id + ".mp3";
+      a.preservesPitch = true;
+      a.webkitPreservesPitch = true;
+      a.defaultPlaybackRate = rate;
+      a.playbackRate = rate;
+      a.play()
+        .then(() => {
+          // подсветка слов по времени из озвучки
+          if (onBoundary && clip.words.length) {
+            let pos = 0;
+            for (const [ms, word] of clip.words) {
+              const i = text.indexOf(word, pos);
+              if (i < 0) continue;
+              pos = i + word.length;
+              this.timers.push(setTimeout(() => !settled && onBoundary(i), ms / rate));
+            }
+          }
+          // страховка, если «ended» не придёт
+          this.timers.push(setTimeout(() => done(true), clip.dur / rate + 1500));
+        })
+        .catch(() => done(false));
+    });
   },
 };
 
