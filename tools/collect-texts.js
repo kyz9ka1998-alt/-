@@ -6,7 +6,8 @@ const path = require("path");
 const root = path.join(__dirname, "..");
 
 global.App = { settings: {}, progress: { done: {} } };
-eval(fs.readFileSync(path.join(root, "js/data.js"), "utf8").replace(/^const /gm, "var ").replace(/^let /gm, "var ").replace(/^function (\w+)/gm, "global.$1 = function $1"));
+const loadJs = (f) => fs.readFileSync(path.join(root, f), "utf8");
+eval((loadJs("js/data.js") + "\n" + loadJs("js/reading-data.js")).replace(/^const /gm, "var ").replace(/^let /gm, "var ").replace(/^function (\w+)/gm, "global.$1 = function $1"));
 
 // тот же хэш, что в js/speech.js (FNV-1a по UTF-8)
 function clipId(lang, text) {
@@ -104,15 +105,31 @@ for (const st of STORIES) {
   }
 }
 
+// раздел «Читаем»
+const ruLow = (s) => s.toLowerCase().replace(/-/g, "");
+for (const [g, v] of Object.entries(RU_LETTERS)) {
+  addRu(`Буква ${g}`);
+  addRu(v.key);
+}
+for (const lv of RU_LEVELS) {
+  lv.syl.forEach((s) => addRu(ruLow(s)));
+  lv.words.forEach((x) => addRu(ruLow(x.w)));
+}
+for (const [, v] of Object.entries(EN_SOUNDS)) addEn(v.key);
+for (const lv of EN_LEVELS) lv.words.forEach((x) => addEn(x.w));
+
 // буквы для обводки
 "abcdefghijklmnopqrstuvwxyz".split("").forEach(addEn);
 
 // фразы прямо из кода (Voice.say("…"), Voice.ru("…"), подсказки hintOnce)
-for (const f of ["js/app.js", "js/lesson.js", "js/engage.js"]) {
+for (const f of ["js/app.js", "js/lesson.js", "js/engage.js", "js/reading.js"]) {
   const src = fs.readFileSync(path.join(root, f), "utf8");
   for (const m of src.matchAll(/Voice\.say\("([^"]+)"(?:,\s*\{([^}]*)\})?\)/g)) (/lang:\s*"ru/.test(m[2] || "") ? addRu : addEn)(m[1]);
   for (const m of src.matchAll(/Voice\.ru\("([^"]+)"\)/g)) addRu(m[1]);
   for (const m of src.matchAll(/hintOnce\("[^"]+",\s*"([^"]+)"\)/g)) addRu(m[1]);
+  // подсказки с выбором по условию: hintOnce(a ? "…" : "…", b ? "…" : "…")
+  for (const line of src.split("\n").filter((l) => l.includes("hintOnce(")))
+    for (const m of line.matchAll(/"([^"]*[А-Яа-яЁё][^"]*)"/g)) addRu(m[1]);
   for (const m of src.matchAll(/Voice\.ru\(stars === 3 \? "([^"]+)" : "([^"]+)"\)/g)) {
     addRu(m[1]);
     addRu(m[2]);

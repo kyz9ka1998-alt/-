@@ -81,6 +81,7 @@ const QUESTS = [
   { id: "story", text: "Прочитай историю", ev: "story", n: 1, icon: "📖" },
   { id: "read", text: "Прочитай 5 слов", ev: "read", n: 5, icon: "📚" },
   { id: "pairs", text: "Найди все пары", ev: "pairs", n: 1, icon: "🔗" },
+  { id: "reading", text: "Пройди уровень в «Читаем»", ev: "reading", n: 1, icon: "📚" },
 ];
 
 function seeded(seed) {

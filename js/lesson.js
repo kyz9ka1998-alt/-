@@ -112,7 +112,10 @@ function nextStep() {
   // статистика по слову для режима «Повторение»
   if (step.word && step.type !== "intro") recordWord(step.word, L.mistakes === L.stepMistakes);
   L.pos++;
-  if (L.pos >= L.steps.length) L.lesson.kind === "review" ? finishReview() : L.lesson.kind === "story" ? finishStory() : finishLesson();
+  if (L.pos >= L.steps.length) {
+    const k = L.lesson.kind;
+    k === "review" ? finishReview() : k === "story" ? finishStory() : k === "reading" ? finishReading() : finishLesson();
+  }
   else runStep();
 }
 

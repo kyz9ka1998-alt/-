@@ -151,6 +151,10 @@ const AudioBank = {
     }
     if (this.finish) this.finish(true);
   },
+  // Проиграть файл по адресу (звуки букв для раздела «Читаем»)
+  playUrl(url) {
+    return this.play({ url, dur: 4000, words: [] }, "", 1, null);
+  },
   // Возвращает Promise<boolean>: true — запись проиграна, false — не вышло (тогда говорит голос iPhone)
   play(clip, text, speed, onBoundary) {
     this.stop();
@@ -168,7 +172,7 @@ const AudioBank = {
       const rate = Math.max(0.5, Math.min(1.3, speed || 1));
       a.onended = () => done(true);
       a.onerror = () => done(false);
-      a.src = "audio/clips/" + clip.id + ".mp3";
+      a.src = clip.url || "audio/clips/" + clip.id + ".mp3";
       a.preservesPitch = true;
       a.webkitPreservesPitch = true;
       a.defaultPlaybackRate = rate;

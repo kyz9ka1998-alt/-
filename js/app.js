@@ -164,6 +164,7 @@ function showHome() {
           ? `<button class="review-btn ${due ? "has-due" : ""}" id="btn-review">🔁 <b>Повторение</b> <span>${due ? `${due} ${plural(due, "слово", "слова", "слов")}` : "всё повторено ✓"}</span></button>`
           : "";
       })()}
+      <button class="reading-btn" id="btn-reading">📚 <b>Читаем</b> <span>Букварь · Phonics</span></button>
       ${questsCardHTML()}
       <div class="row3">
         <button class="mid-btn" id="btn-map">🗺️<span>Карьера</span></button>
@@ -174,6 +175,7 @@ function showHome() {
   `);
   if ($("#chest", root)) $("#chest", root).onclick = openChest;
   $("#btn-stories", root).onclick = showStories;
+  $("#btn-reading", root).onclick = showReading;
   App.stage = new PlayerStage($("#stage", root));
   App.stage.onCount = () => Sfx.tick();
   App.stage.play(App.latestSkill());
@@ -491,7 +493,7 @@ function showSettings() {
 // Код прогресса: прогресс в виде короткой строки, чтобы перенести его на другое устройство.
 function exportCode() {
   const p = App.progress;
-  const data = { v: 1, d: p.done, s: p.skills, c: p.cups, w: p.words, k: p.streak, y: p.days, b: p.bonus };
+  const data = { v: 1, d: p.done, s: p.skills, c: p.cups, w: p.words, k: p.streak, y: p.days, b: p.bonus, r: p.reading };
   return "FE1-" + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
 }
 function importCode(code) {
@@ -499,7 +501,7 @@ function importCode(code) {
     const raw = code.trim().replace(/^FE1-/, "");
     const d = JSON.parse(decodeURIComponent(escape(atob(raw))));
     if (!d || typeof d.d !== "object" || !Array.isArray(d.s) || !Array.isArray(d.c)) return false;
-    App.progress = { done: d.d, skills: d.s, cups: d.c, words: d.w || {}, streak: d.k, days: d.y || {}, bonus: d.b || 0 };
+    App.progress = { done: d.d, skills: d.s, cups: d.c, words: d.w || {}, streak: d.k, days: d.y || {}, bonus: d.b || 0, reading: d.r || { ru: {}, en: {} } };
     ensureEngage();
     App.save();
     return true;
