@@ -1,5 +1,5 @@
 // Офлайн-кэш: сначала сеть (чтобы обновления приходили сразу), при отсутствии сети — кэш.
-const CACHE = "football-english-v6";
+const CACHE = "football-english-v7";
 const FILES = ["./", "index.html", "css/style.css", "js/data.js", "js/speech.js", "js/player.js", "js/lesson.js", "js/app.js", "manifest.json", "icons/icon-180.png", "icons/icon-192.png"];
 
 self.addEventListener("install", (e) => {

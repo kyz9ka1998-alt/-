@@ -655,6 +655,10 @@ const SKILLS = [
   { id: "juggle100", name: "Набивает мяч 100 раз", anim: "juggle", count: 100, icon: "💯" },
   { id: "stepover", name: "Финт «Ножницы»", anim: "stepover", icon: "✂️" },
   { id: "bicycle", name: "Удар через себя", anim: "bicycle", icon: "🤸" },
+  { id: "combo", name: "Чеканка: нога — колено — голова", anim: "combo", icon: "🔄" },
+  { id: "volley", name: "Удар с лёта", anim: "volley", icon: "💥" },
+  { id: "panenka", name: "Пенальти «Паненка»", anim: "panenka", icon: "🪶" },
+  { id: "kneeslide", name: "Празднование: скольжение на коленях", anim: "kneeslide", icon: "🙌" },
 ];
 
 const CAREER = [
